@@ -446,7 +446,8 @@ class Meme(object):
                 self.align_motives()
             motives=list(self.aligned_motives_list)
             
-        wb = Weblogo(output_format='png', alphabet = 'AGCT', resolution=200, fineprint=' ')
+        wb = Weblogo(output_format='png', sequence_type='dna', resolution=200, fineprint=' ')
+        # TODO: sequence_type should be same as meme's alphabet
         for i in range(self.nmotifs):
             logo = wb.create_logo(seqs=motives[i])
             logos_list.append(logo)
