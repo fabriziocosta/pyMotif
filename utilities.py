@@ -58,7 +58,7 @@ class Weblogo(object):
                  stacks_per_line = 40,
                  sequence_type = 'dna',    #[protein, dna, rna]
                  ignore_lower_case = False,
-                 units = 'bits',
+                 units = 'bits',    #['bits', 'nats', 'digits', 'kT', 'kJ/mol', 'kcal/mol', 'probability']
                  first_position = 1,
                  logo_range = list(),
                  #composition = 'auto',
