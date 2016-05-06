@@ -54,10 +54,9 @@ class Weblogo(object):
     
     def __init__(self,
 
-                 output_format = 'png',    #[eps, png, png_print, pdf, jpeg, svg, logodata]
-                 alphabet = 'AGCT',
+                 output_format = 'png',    #[eps, png, png_print, jpeg]
                  stacks_per_line = 40,
-                 sequence_type = 'auto',
+                 sequence_type = 'dna',    #[protein, dna, rna]
                  ignore_lower_case = False,
                  units = 'bits',
                  first_position = 1,
@@ -105,13 +104,17 @@ class Weblogo(object):
         
         self.options = options
         self.output_format = output_format
-        self.alphabet = alphabet
         
     def create_logo(self, seqs=[]):
         headers,instances = [list(x) for x in zip(*seqs)]    #seperating headers
         
-        #TODO: set alphabet according to __init__
-        motif_corebio = SeqList(alist=instances, alphabet=Alphabet(self.alphabet))
+        if self.options.sequence_type is 'rna':
+            alphabet=Alphabet('ACGU')
+        elif self.options.sequence_type is 'protein':
+            alphabet=Alphabet('ACDEFGHIKLMNPQRSTVWY')
+        else:
+            alphabet=Alphabet('AGCT')
+        motif_corebio = SeqList(alist=instances, alphabet=alphabet)
         data = LogoData().from_seqs(motif_corebio)
 
         format = LogoFormat(data, self.options)
