@@ -4,7 +4,6 @@ import PIL
 import re
 import os
 from Bio import motifs
-#from weblogo_wrapper import Weblogo
 from IPython.display import Image, display
 from utilities import MuscleAlign_wrapper, Weblogo
 
@@ -79,7 +78,33 @@ class Meme(object):
                  V = False, #extensive message # 
                  
                  #h = False #display usage message
-                 pseudocounts = 0    # alphabet pseudocount for PWM matrix
+                 pseudocounts = 0,    # alphabet pseudocount for PWM matrix
+
+                 #parameters for Muscle Alignment
+                 ma_diags = False,
+                 ma_maxiters = 16,
+                 ma_maxhours = None,
+
+                 #parameters for WebLogo
+                 wl_output_format = 'png',  # ['eps', 'png', 'png_print', 'jpeg']
+                 wl_stacks_per_line = 40,
+                 wl_ignore_lower_case = False,
+                 wl_units = 'bits',  # ['bits', 'nats', 'digits', 'kT', 'kJ/mol', 'kcal/mol', 'probability']
+                 wl_first_position = 1,
+                 wl_logo_range = list(),
+                 wl_scale_stack_widths = True,
+                 wl_error_bars = True,
+                 wl_title = '',
+                 wl_figure_label = '',
+                 wl_show_x_axis = True,
+                 wl_x_label = '',
+                 wl_show_y_axis = True,
+                 wl_y_label = '',
+                 wl_y_axis_tic_spacing = 1.0,
+                 wl_show_ends = False,
+                 wl_color_scheme = 'classic',  # ['auto', 'base', 'pairing', 'charge', 'chemistry', 'classic', 'monochrome']
+                 wl_resolution = 96,
+                 wl_fineprint = '',
                 ):
         
         self.output_dir = output_dir
@@ -118,6 +143,44 @@ class Meme(object):
         self.bfactor = bfactor
         self.maxsize = maxsize
         self.V = V
+
+        self.MA = MuscleAlign_wrapper(	diags = ma_diags,
+        								maxiters = ma_maxiters,
+        								maxhours = ma_maxhours,
+        								)
+
+        self.WL = Weblogo(	output_format = wl_output_format,
+                 			stacks_per_line = wl_stacks_per_line,
+                 			#sequence_type = 
+                 			ignore_lower_case = wl_ignore_lower_case, 
+                 			units = wl_units,
+                 			first_position = wl_first_position,
+                 			logo_range = wl_logo_range,
+                 			#composition = 
+                 			scale_stack_widths = wl_scale_stack_widths,
+                 			error_bars = wl_error_bars,
+                 			title = wl_title,
+                 			figure_label = wl_figure_label,
+                 			show_x_axis = wl_show_x_axis,
+                 			x_label = wl_x_label,
+                 			show_y_axis = wl_show_y_axis,
+                 			y_label = wl_y_label,
+                 			y_axis_tic_spacing = wl_y_axis_tic_spacing,
+                 			show_ends = wl_show_ends,
+                 			color_scheme = wl_color_scheme,
+                 			resolution = wl_resolution,
+                 			fineprint = wl_fineprint,
+                 		)
+
+        if self.alphabet == "dna":
+        	self.WL.sequence_type = "dna"
+        elif self.alphabet == "rna":
+        	self.WL.sequence_type = "rna"
+        elif self.alphabet == "protein":
+        	self.WL.sequence_type = "protein"
+        else:
+        	self.WL.sequence_type = "auto"
+
         
         self.cmd_params = ""    # parameters for command string
         self.n_seqs = 0    # no. of seqs in input file, to be set by fit()
@@ -431,9 +494,8 @@ class Meme(object):
     def align_motives(self):
         motives=list(self.motives_list)
         aligned_motives = list()
-        ma = MuscleAlign_wrapper()
         for i in range(self.nmotifs):
-            aligned_motives.append( ma.transform(seqs=motives[i]) )
+            aligned_motives.append( self.MA.transform(seqs=motives[i]) )
         
         self.aligned_motives_list = aligned_motives[:]
     
@@ -446,10 +508,8 @@ class Meme(object):
                 self.align_motives()
             motives=list(self.aligned_motives_list)
             
-        wb = Weblogo(output_format='png', sequence_type='dna', resolution=200, fineprint=' ')
-        # TODO: sequence_type should be same as meme's alphabet
         for i in range(self.nmotifs):
-            logo = wb.create_logo(seqs=motives[i])
+            logo = self.WL.create_logo(seqs=motives[i])
             logos_list.append(logo)
         return logos_list
 

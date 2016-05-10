@@ -77,9 +77,9 @@ class Weblogo(object):
 
     def __init__(self,
 
-                 output_format='png',  # [eps, png, png_print, jpeg]
+                 output_format='png',  # ['eps', 'png', 'png_print', 'jpeg']
                  stacks_per_line=40,
-                 sequence_type='dna',  # [protein, dna, rna]
+                 sequence_type='dna',  # ['protein', 'dna', 'rna']
                  ignore_lower_case=False,
                  units='bits',  # ['bits', 'nats', 'digits', 'kT', 'kJ/mol', 'kcal/mol', 'probability']
                  first_position=1,
@@ -95,7 +95,7 @@ class Weblogo(object):
                  y_label='',
                  y_axis_tic_spacing=1.0,
                  show_ends=False,
-                 color_scheme='classic',  # [auto, base, pairing, charge, chemistry, classic, monochrome]
+                 color_scheme='classic',  # ['auto', 'base', 'pairing', 'charge', 'chemistry', 'classic', 'monochrome']
                  resolution=96,
                  fineprint='',
                  ):
@@ -229,7 +229,7 @@ class PWM(object):
             for j in range(motif_len):
                 letter = seq[i + j]
                 segment_score *= pwm_i[letter][j]
-            if segment_score > threshold:
+            if segment_score < threshold:
                 scores.append(segment_score)
                 indexes.append(i)
 
