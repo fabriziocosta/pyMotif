@@ -50,6 +50,7 @@ class MuscleAlign_wrapper(object):
         instances_SeqRecord = []
         for i, j in enumerate(instances):
             instances_SeqRecord.append(SeqRecord(Seq(j, IUPAC.unambiguous_dna), id=str(i)))
+            # TODO: alphabet according to data
 
         handle = StringIO()
         SeqIO.write(instances_SeqRecord, handle, "fasta")
@@ -164,23 +165,24 @@ class PWM(object):
                  ):
 
         self.pseudocounts = pseudocounts
-
-        if alphabet == 'protein':
-            self.alphabet = IUPAC.protein
-        elif alphabet == 'rna':
-            self.alphabet = IUPAC.unambiguous_rna
-        else:
-            self.alphabet = IUPAC.unambiguous_dna
-
+        self.alphabet = alphabet
         self.pwms_list = list()
 
     def _get_pwm(self, input_motif=list()):
-
-        headers, instances = [list(x) for x in zip(*input_motif)]  # seperating headers
-
+        # seperate headers from sequences
+        headers, instances = [list(x) for x in zip(*input_motif)]
         motif_seq = list()
+
+        if self.alphabet == 'protein':
+            alphabet = IUPAC.protein
+        elif self.alphabet == 'rna':
+            alphabet = IUPAC.unambiguous_rna
+        else:
+            alphabet = IUPAC.unambiguous_dna
+
         for i in instances:
-            motif_seq.append(Seq(i, self.alphabet))  # motif as Bio.Seq instance
+            # motif as Bio.Seq instance
+            motif_seq.append(Seq(i, alphabet))
 
         motif_obj = motifs.create(motif_seq)
         return motif_obj.counts.normalize(self.pseudocounts)
@@ -191,7 +193,7 @@ class PWM(object):
             pwms.append(self._get_pwm(input_motif=motives[i]))
         self.pwms_list = pwms[:]
 
-    def display(self, motif_num=None):
+    def display_pwm(self, motif_num=None):
         if motif_num is None:
             for i in range(len(self.pwms_list)):
                 print self.pwms_list[i]
@@ -202,12 +204,9 @@ class PWM(object):
         pwm_i = self.pwms_list[motif_num - 1]
         seq_len = len(seq)
         motif_len = len(pwm_i.itervalues().next())
-
         if seq_len < motif_len:
             raise ValueError('Sequence must be at least as long as the motif')
-
         scores = list()
-
         for i in range(seq_len - motif_len + 1):
             segment_score = 1
             for j in range(motif_len):
@@ -216,46 +215,27 @@ class PWM(object):
             scores.append(segment_score)
         return scores
 
-    def predict(self, motif_num=1, threshold=0.0001, seq=''):
-        pwm_i = self.pwms_list[motif_num - 1]
-        seq_len = len(seq)
-        motif_len = len(pwm_i.itervalues().next())
-
-        scores = list()
-        indexes = list()
-
-        for i in range(seq_len - motif_len + 1):
-            segment_score = 1
-            for j in range(motif_len):
-                letter = seq[i + j]
-                segment_score *= pwm_i[letter][j]
-            if segment_score < threshold:
-                scores.append(segment_score)
-                indexes.append(i)
-
-        return zip(indexes, scores)
-
     def _parse_input_file(self, fasta_file):
         headers = list()
         seqs = list()
-
         fasta_sequences = SeqIO.parse(open(fasta_file), 'fasta')
         for fasta in fasta_sequences:
             seq_name, sequence = fasta.id, str(fasta.seq)
-
             headers.append(seq_name)
             seqs.append(sequence)
         return zip(headers, seqs)
 
-    def predict_new(self, fasta_file='', return_list=True, threshold=1.0e-9, append_score=False):
+    def predict(self, fasta_file='', return_list=True, threshold=1.0e-9, append_score=False):
+        # TODO: remove append_score after debugging is complete
+        # TODO: also remove append_score from Meme.predict and fit_predict
         input_seqs = self._parse_input_file(fasta_file)
         headers, sequences = [list(x) for x in zip(*input_seqs)]
 
-        seq_lists = [[] for i in range(len(headers))]  # motifs list for every sequence
+        seq_lists = [[] for i in range(len(headers))]  # motives list for every sequence
 
         for i, s in enumerate(sequences):
-            for j in range(len(self.pwms_list)):  # TODO: adjust for self
-                score = self.score(motif_num=j + 1, seq=s)  # TODO: adjust for self
+            for j in range(len(self.pwms_list)):
+                score = self.score(motif_num=j + 1, seq=s)
                 for scr in score:
                     if scr > threshold:
                         # seq_lists[i].append(j)
@@ -264,13 +244,12 @@ class PWM(object):
                                 seq_lists[i].append(score)
                             else:
                                 seq_lists[i].append(j)
-
         if return_list == True:
             return seq_lists
         return [len(i) for i in seq_lists]
 
     def _get_occurence_indexandscore(self, seq, motif_num, threshold):
-        pwm_i = self.pwms_list[motif_num]  # TODO: adjust for self, pwm_list[motif_num]
+        pwm_i = self.pwms_list[motif_num]
         seq_len = len(seq)
         motif_len = len(pwm_i.itervalues().next())
 
@@ -288,27 +267,23 @@ class PWM(object):
         indexes = [(i, i + motif_len) for i in indexes]
         return indexes, scores
 
-    def transform_new(self, fasta_file='', return_match=True, threshold=1.0e-9):
+    def transform(self, fasta_file='', return_match=True, threshold=1.0e-9):
         input_seqs = self._parse_input_file(fasta_file)
         headers, sequences = [list(x) for x in zip(*input_seqs)]
-
-        match_list = [[[] for j in range(len(self.pwms_list))] for i in range(len(headers))]  # TODO: adjust for self
+        match_list = [[[] for j in range(len(self.pwms_list))] for i in range(len(headers))]
 
         for i, s in enumerate(sequences):
-            for j in range(len(self.pwms_list)):  # TODO: adjust for self, nmotifs
+            for j in range(len(self.pwms_list)):
                 occs, scores = self._get_occurence_indexandscore(seq=s, motif_num=j, threshold=threshold)
                 match_list[i][j] = occs
 
         if return_match is False:
             match_nums = [[] for i in range(len(headers))]
             for i in range(len(headers)):
-                for j in range(len(self.pwms_list)):  # TODO: adjust for self, nmotifs
+                for j in range(len(self.pwms_list)):
                     if match_list[i][j]:
                         match_nums[i].append(1)
                     else:
                         match_nums[i].append(0)
             return match_nums
         return match_list
-    # TODO: replace predict() with predict_new()
-    # TODO: Make one Abstract class
-    # TODO: attributes of WL and MA classes
