@@ -383,15 +383,19 @@ class MotifWrapper(object):
             if segment_score > threshold:
                 scores.append(segment_score)
                 indexes.append(i + 1)
-        indexes = [(i, i + motif_len) for i in indexes]
-        return indexes, scores
+        indexes_last = [i + motif_len for i in indexes]
+        return_list = [zip(indexes, indexes_last, scores)]
+        return return_list, scores
 
     def transform(self, fasta_file='', return_match=True, threshold=1.0e-9):
         input_seqs = self._parse_fasta_file(fasta_file)
         headers, sequences = [list(x) for x in zip(*input_seqs)]
         match_list = [
-            [[] for j in range(len(self.pwms_list))]
-            for i in range(len(headers))]
+                     [
+                         [] for j in range(len(self.pwms_list))
+                     ]
+            for i in range(len(headers))
+        ]
 
         for i, s in enumerate(sequences):
             for j in range(len(self.pwms_list)):
