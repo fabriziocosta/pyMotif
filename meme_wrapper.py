@@ -205,8 +205,6 @@ class Meme(MotifWrapper):
         self.e_values = list()
         # over-rides same attribute of MotifWrapper class
         self.pseudocounts = pseudocounts
-        # list of p-value of sequences given as input to predict()
-        self.seq_scores = list()
         # list of sequence logos created with WebLogo
         self.logos = list()
 
@@ -419,35 +417,6 @@ class Meme(MotifWrapper):
                     self.motives_db[i].instances[j].sequence_name)
         return occurences
 
-    def _make_score_list(self, header=None, motif_occurences=None):
-        pvalue_lists = [
-            [
-                [] for j in range(self.nmotifs)
-            ] for i in range(len(header))
-        ]
-
-        # for all seqs in predict() input
-        for seq_id, seq_name in enumerate(header):
-            # for all motives found
-            for i in range(self.nmotifs):
-                if seq_name in motif_occurences[i]:
-                    # for multiple occurences of same motif in a sequence
-                    repetitions = motif_occurences[i].count(seq_name)
-
-                    if repetitions == 1:
-                        seq_index = [motif_occurences[i].index(seq_name)]
-                    else:
-                        seq_index = [
-                            k for k, val in enumerate(motif_occurences[i])
-                            if val == seq_name]
-
-                    for j in seq_index:
-                        seq_pvalue = self.motives_db[i].instances[j].pvalue
-                        pvalue_lists[seq_id][i].append(seq_pvalue)
-                else:  # motif[i] does not occur in a sequence
-                    pvalue_lists[seq_id][i].append(0.0)
-        self.seq_scores = pvalue_lists[:]
-
     def _get_match_list(self, header=None, motif_occurences=None):
         match_list = [
             [
@@ -477,23 +446,6 @@ class Meme(MotifWrapper):
                             [start_pos], [start_pos + motif_len])[0]
                         match_list[seq_id][i].append(motif_location)
         return match_list
-
-    def predict(self,
-                fasta_file='',
-                return_list=True,
-                threshold=1.0e-9,
-                append_score=False):
-        header = self._get_seq_header_list(fasta_file=fasta_file)
-        motif_occurences = self._get_motif_occurences()
-
-        self._make_score_list(header=header,
-                              motif_occurences=motif_occurences)
-
-        return super(Meme, self).predict(fasta_file=fasta_file,
-                                         return_list=return_list,
-                                         threshold=threshold,
-                                         append_score=append_score,
-                                         )
 
     def fit_predict(self,
                     fasta_file="",

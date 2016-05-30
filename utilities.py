@@ -157,11 +157,11 @@ class Weblogo(object):
                               for x in zip(*seqs)]
 
         if self.options.sequence_type is 'rna':
-            alphabet = Alphabet('ACGU-')
+            alphabet = Alphabet('ACGU')
         elif self.options.sequence_type is 'protein':
-            alphabet = Alphabet('ACDEFGHIKLMNPQRSTVWY-')
+            alphabet = Alphabet('ACDEFGHIKLMNPQRSTVWY')
         else:
-            alphabet = Alphabet('AGCT-')
+            alphabet = Alphabet('AGCT')
         motif_corebio = SeqList(alist=instances, alphabet=alphabet)
         data = wbl.LogoData().from_seqs(motif_corebio)
 
@@ -309,7 +309,7 @@ class MotifWrapper(object):
         else:
             return self._create_matrix(motif_num - 1)
 
-    def score(self, motif_num=1, seq=''):
+    def score(self, motif_num=1, seq='', zero_padding=False):
         """
         Scores a single sequence according to specified motif
         """
@@ -325,6 +325,9 @@ class MotifWrapper(object):
                 letter = seq[i + j]
                 segment_score *= pwm_i[letter][j]
             scores.append(segment_score)
+        if zero_padding is True:
+            for i in range(seq_len - len(scores)):
+                scores.append(0)
         return scores
 
     def _parse_fasta_file(self, fasta_file):
@@ -373,7 +376,7 @@ class MotifWrapper(object):
         motif_len = len(pwm_i.itervalues().next())
 
         scores = list()
-        indexes = list()
+        start_indexes = list()
 
         for i in range(seq_len - motif_len + 1):
             segment_score = 1
@@ -382,10 +385,9 @@ class MotifWrapper(object):
                 segment_score *= pwm_i[letter][j]
             if segment_score > threshold:
                 scores.append(segment_score)
-                indexes.append(i + 1)
-        indexes_last = [i + motif_len for i in indexes]
-        return_list = zip(indexes, indexes_last, scores)
-        return return_list, scores
+                start_indexes.append(i + 1)
+        last_indexes = [i + motif_len for i in start_indexes]
+        return zip(start_indexes, last_indexes, scores)
 
     def transform(self, fasta_file='', return_match=True, threshold=1.0e-9):
         input_seqs = self._parse_fasta_file(fasta_file)
@@ -399,7 +401,7 @@ class MotifWrapper(object):
 
         for i, s in enumerate(sequences):
             for j in range(len(self.pwms_list)):
-                occs, scores = self._get_occurence_indexandscore(
+                occs = self._get_occurence_indexandscore(
                     seq=s, motif_num=j, threshold=threshold)
                 match_list[i][j] = occs
 
