@@ -384,7 +384,7 @@ class MotifWrapper(object):
                 scores.append(segment_score)
                 indexes.append(i + 1)
         indexes_last = [i + motif_len for i in indexes]
-        return_list = [zip(indexes, indexes_last, scores)]
+        return_list = zip(indexes, indexes_last, scores)
         return return_list, scores
 
     def transform(self, fasta_file='', return_match=True, threshold=1.0e-9):

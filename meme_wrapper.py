@@ -366,7 +366,7 @@ class Meme(MotifWrapper):
             motives.append(zip(headers, motif_as_str))
         return motives
 
-    def fit(self, fasta_file=""):
+    def fit(self, fasta_file=''):
         if not fasta_file:
             raise NameError('Input fasta file not specified')
 
@@ -393,7 +393,6 @@ class Meme(MotifWrapper):
         self._get_stats(self.nmotifs)
 
         # TODO: remove self.motives_list & self. aligned_motives_list
-
         # get string representation of motives
         self.motives_list = list(self._get_motives_list())
 
