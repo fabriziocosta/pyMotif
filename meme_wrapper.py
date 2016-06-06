@@ -5,9 +5,7 @@ from subprocess import PIPE, Popen
 
 from Bio import motifs
 
-# from IPython.display import Image, display
-
-from utilities import MotifWrapper  # MuscleAlignWrapper, Weblogo
+from utilities import MotifWrapper
 
 
 class Meme(MotifWrapper):
@@ -451,6 +449,7 @@ class Meme(MotifWrapper):
     def fit_predict(self,
                     fasta_file="",
                     return_list=False,):
+    	"""Find motives with Meme and return motif occurence list."""
         self.fit(fasta_file=fasta_file)
         return self.predict(input_seqs=fasta_file,
                             return_list=return_list)
@@ -458,11 +457,13 @@ class Meme(MotifWrapper):
     def fit_transform(self,
                       fasta_file="",
                       return_match=False):
+		"""Find motives with Meme and return motif match list."""
         self.fit(fasta_file=fasta_file)
         return self.transform(input_seqs=fasta_file,
                               return_match=return_match)
 
     def display_meme_help(self):
+		"""Display Meme tool's help."""
         cmd = "meme --help"
         io = Popen(cmd.split(" "), stdout=PIPE, stderr=PIPE)
         (error, output) = io.communicate()
