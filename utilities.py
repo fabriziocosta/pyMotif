@@ -214,6 +214,7 @@ class MotifWrapper(object):
 
         self.pseudocounts = pseudocounts
         self.alphabet = alphabet
+        self.threshold = 1.0e-9
 
         self.ma_diags = ma_diags
         self.ma_maxiters = ma_maxiters
@@ -247,6 +248,7 @@ class MotifWrapper(object):
         else:
             self.wl_sequence_type = "auto"
 
+        # list of PWMs corresponding to each motif
         self.pwms_list = list()
         # list-of-strings representation of motifs
         self.motives_list = list()
@@ -298,9 +300,7 @@ class MotifWrapper(object):
         return np.array(m)
 
     def matrix(self, motif_num=None):
-        """
-        if motif_num not specified, returns a list of numpy arrays
-        """
+        """If motif_num not specified, returns a list of numpy arrays."""
         if motif_num is None:
             matrix_list = []
             for i in range(len(self.pwms_list)):
@@ -310,9 +310,7 @@ class MotifWrapper(object):
             return self._create_matrix(motif_num - 1)
 
     def score(self, motif_num=1, seq='', zero_padding=False):
-        """
-        Scores a single sequence according to specified motif
-        """
+        """Return the score of a sequence according to specified motif."""
         pwm_i = self.pwms_list[motif_num - 1]
         seq_len = len(seq)
         motif_len = len(pwm_i.itervalues().next())
@@ -341,13 +339,11 @@ class MotifWrapper(object):
         return zip(headers, seqs)
 
     def predict(self,
-                fasta_file='',
+                input_seqs='',
                 return_list=True,
-                threshold=1.0e-9,
-                append_score=False):
-        # TODO: remove append_score after debugging is complete
-        # TODO: also remove append_score from Meme.predict and fit_predict
-        input_seqs = self._parse_fasta_file(fasta_file)
+                ):
+        if '.fa' in input_seqs:
+            input_seqs = self._parse_fasta_file(fasta_file=input_seqs)
         headers, sequences = [list(x) for x in zip(*input_seqs)]
 
         # motives list for every sequence
@@ -357,20 +353,15 @@ class MotifWrapper(object):
             for j in range(len(self.pwms_list)):
                 score = self.score(motif_num=j + 1, seq=s)
                 for scr in score:
-                    if scr > threshold:
-                        # seq_lists[i].append(j)
-                        if sum(score) > threshold:
-                            # TODO: remove append score, only else's line
-                            # remains
-                            if append_score is True:
-                                seq_lists[i].append(score)
-                            else:
-                                seq_lists[i].append(j)
+                    if scr > self.threshold:
+                        if sum(score) > self.threshold:
+                            seq_lists[i].append(j)
+
         if return_list is True:
             return seq_lists
         return [len(i) for i in seq_lists]
 
-    def _get_occurence_indexandscore(self, seq, motif_num, threshold):
+    def _get_occurence_indexandscore(self, seq, motif_num):
         pwm_i = self.pwms_list[motif_num]
         seq_len = len(seq)
         motif_len = len(pwm_i.itervalues().next())
@@ -383,14 +374,15 @@ class MotifWrapper(object):
             for j in range(motif_len):
                 letter = seq[i + j]
                 segment_score *= pwm_i[letter][j]
-            if segment_score > threshold:
+            if segment_score > self.threshold:
                 scores.append(segment_score)
                 start_indexes.append(i + 1)
         last_indexes = [i + motif_len for i in start_indexes]
         return zip(start_indexes, last_indexes, scores)
 
-    def transform(self, fasta_file='', return_match=True, threshold=1.0e-9):
-        input_seqs = self._parse_fasta_file(fasta_file)
+    def transform(self, input_seqs='', return_match=True):
+        if '.fa' in input_seqs:
+            input_seqs = self._parse_fasta_file(fasta_file=input_seqs)
         headers, sequences = [list(x) for x in zip(*input_seqs)]
         match_list = [
                      [
@@ -401,8 +393,7 @@ class MotifWrapper(object):
 
         for i, s in enumerate(sequences):
             for j in range(len(self.pwms_list)):
-                occs = self._get_occurence_indexandscore(
-                    seq=s, motif_num=j, threshold=threshold)
+                occs = self._get_occurence_indexandscore(seq=s, motif_num=j)
                 match_list[i][j] = occs
 
         if return_match is False:

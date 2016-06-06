@@ -1,4 +1,3 @@
-
 import os
 import re
 
@@ -14,7 +13,7 @@ from utilities import MotifWrapper  # MuscleAlignWrapper, Weblogo
 class Meme(MotifWrapper):
 
     """
-    Wrapper for MEME 4.11.0
+    Wrapper for MEME 4.11.0 .
     Usage: meme <sequence file> [options]
     To see MEME help, use MEME.display_meme_help()
     """
@@ -193,10 +192,6 @@ class Meme(MotifWrapper):
         self.seq_names = list()
         # list of motives, each represented by an object
         self.motives_db = list()
-        # list-of-strings representation of motifs
-        self.motives_list = list()
-        # aligned list-of-strings of motifs, created by display_logo method
-        self.aligned_motives_list = list()
         # widths given in summary headers; length of each motif
         self.widths = list()
         # sites given in summary headers; num occurences
@@ -205,8 +200,14 @@ class Meme(MotifWrapper):
         self.e_values = list()
         # over-rides same attribute of MotifWrapper class
         self.pseudocounts = pseudocounts
+        # list-of-strings representation of motifs
+        self.motives_list = list()
+        # aligned list-of-strings of motifs, created by display_logo method
+        self.aligned_motives_list = list()
         # list of sequence logos created with WebLogo
         self.logos = list()
+        # threshold for scoring sequences
+        self.threshold = 1.0e-9
 
     def _make_param_string(self):
         # Creates a string of parameters
@@ -449,23 +450,17 @@ class Meme(MotifWrapper):
 
     def fit_predict(self,
                     fasta_file="",
-                    return_list=False,
-                    threshold=1.0e-9,
-                    append_score=False):
+                    return_list=False,):
         self.fit(fasta_file=fasta_file)
-        return self.predict(fasta_file=fasta_file,
-                            return_list=return_list,
-                            threshold=threshold,
-                            append_score=append_score)
+        return self.predict(input_seqs=fasta_file,
+                            return_list=return_list)
 
     def fit_transform(self,
                       fasta_file="",
-                      return_match=False,
-                      threshold=1.0e-9):
+                      return_match=False):
         self.fit(fasta_file=fasta_file)
-        return self.transform(fasta_file=fasta_file,
-                              return_match=return_match,
-                              threshold=threshold)
+        return self.transform(input_seqs=fasta_file,
+                              return_match=return_match)
 
     def display_meme_help(self):
         cmd = "meme --help"
