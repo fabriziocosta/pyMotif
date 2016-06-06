@@ -30,6 +30,7 @@ class EdenWrapper(MotifWrapper):
                  pre_processor_block_size=None,
                  random_state=1,
                  pseudocounts=0,
+                 threshold=1.0e-9
                  ):
         """Initialize a EdenWrapper object."""
         self.alphabet = alphabet
@@ -65,7 +66,7 @@ class EdenWrapper(MotifWrapper):
         # list of sequence logos created with WebLogo
         self.logos = list()
         # threshold for scoring sequences
-        self.threshold = 1.0e-9
+        self.threshold = threshold
         # TODO: remove
         self.motives_db = None
 
@@ -73,13 +74,13 @@ class EdenWrapper(MotifWrapper):
         motives = list()
         for i in db.keys():
             motives.append(db[i])
+        self.motives_list = motives[:]
 
         aligned_motives = []
         ma = MuscleAlignWrapper()
         for i in range(len(motives)):
             aligned_motives.append(ma.transform(seqs=motives[i]))
-
-        return aligned_motives
+        self.aligned_motives = aligned_motives[:]
 
     def fit(self, seqs, neg_seqs=None):
         """Find motives with EDeN Sequence Motif."""
@@ -109,11 +110,11 @@ class EdenWrapper(MotifWrapper):
         # TODO: remove db
         self.motives_db = sm.motives_db
         self.nmotifs = len(sm.motives_db.keys())
-        self.motives_list = self._get_motives_list(sm.motives_db)[:]
+        self._get_motives_list(sm.motives_db)
 
         # create PWMs
-        motives_list = self.motives_list[:]
-        super(EdenWrapper, self).fit(motives=motives_list)
+        aligned_motives_list = self.aligned_motives_list[:]
+        super(EdenWrapper, self).fit(motives=aligned_motives_list)
 
     def fit_predict(self,
                     seqs,
