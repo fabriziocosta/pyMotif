@@ -449,21 +449,18 @@ class Meme(MotifWrapper):
     def fit_predict(self,
                     fasta_file="",
                     return_list=False,):
-    	"""Find motives with Meme and return motif occurence list."""
         self.fit(fasta_file=fasta_file)
         return self.predict(input_seqs=fasta_file,
                             return_list=return_list)
 
     def fit_transform(self,
                       fasta_file="",
-                      return_match=False):
-		"""Find motives with Meme and return motif match list."""
+                      return_match=False
+                      ):
         self.fit(fasta_file=fasta_file)
-        return self.transform(input_seqs=fasta_file,
-                              return_match=return_match)
+        return self.transform(input_seqs=fasta_file, return_match=return_match)
 
     def display_meme_help(self):
-		"""Display Meme tool's help."""
         cmd = "meme --help"
         io = Popen(cmd.split(" "), stdout=PIPE, stderr=PIPE)
         (error, output) = io.communicate()
