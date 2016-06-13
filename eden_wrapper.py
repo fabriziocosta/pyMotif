@@ -209,7 +209,7 @@ class EdenWrapper(MotifWrapper):
         self.motives_list = modified_motives_list[:]
 
     def fit(self, seqs, neg_seqs=None):
-        """Find motives with EDeN Sequence Motif."""
+        """Find motives with EDeN.SequenceMotif."""
         sm = SequenceMotif(min_subarray_size=self.min_subarray_size,
                            max_subarray_size=self.max_subarray_size,
                            min_motif_count=self.min_motif_count,

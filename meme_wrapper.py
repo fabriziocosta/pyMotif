@@ -363,6 +363,7 @@ class Meme(MotifWrapper):
         return motives
 
     def fit(self, fasta_file=''):
+
         if not fasta_file:
             raise NameError('Input fasta file not specified')
 
