@@ -30,7 +30,35 @@ class EdenWrapper(MotifWrapper):
                  pre_processor_block_size=None,
                  random_state=1,
                  pseudocounts=0,
-                 threshold=1.0e-9
+                 threshold=1.0e-9,
+
+                 # parameters for Muscle Alignment
+                 ma_diags=False,
+                 ma_maxiters=16,
+                 ma_maxhours=None,
+
+                 # parameters for WebLogo
+                 wl_output_format='png',  # ['eps', 'png', 'png_print', 'jpeg']
+                 wl_stacks_per_line=40,
+                 wl_ignore_lower_case=False,
+                 wl_units='bits',
+                 # ['bits','nats','digits','kT','kJ/mol','kcal/mol','probability']
+                 wl_first_position=1,
+                 wl_logo_range=list(),
+                 wl_scale_stack_widths=True,
+                 wl_error_bars=True,
+                 wl_title='',
+                 wl_figure_label='',
+                 wl_show_x_axis=True,
+                 wl_x_label='',
+                 wl_show_y_axis=True,
+                 wl_y_label='',
+                 wl_y_axis_tic_spacing=1.0,
+                 wl_show_ends=False,
+                 wl_color_scheme='classic',
+                 # ['auto','base','pairing','charge','chemistry','classic','monochrome']
+                 wl_resolution=96,
+                 wl_fineprint='',
                  ):
         """Initialize a EdenWrapper object."""
         self.alphabet = alphabet
@@ -55,6 +83,38 @@ class EdenWrapper(MotifWrapper):
         self.pre_processor_block_size = pre_processor_block_size
         self.random_state = random_state
 
+        self.ma_diags = ma_diags
+        self.ma_maxiters = ma_maxiters
+        self.ma_maxhours = ma_maxhours
+
+        self.wl_output_format = wl_output_format
+        self.wl_stacks_per_line = wl_stacks_per_line
+        self.wl_ignore_lower_case = wl_ignore_lower_case
+        self.wl_units = wl_units
+        self.wl_first_position = wl_first_position
+        self.wl_logo_range = wl_logo_range
+        self.wl_scale_stack_widths = wl_scale_stack_widths
+        self.wl_error_bars = wl_error_bars
+        self.wl_title = wl_title
+        self.wl_figure_label = wl_figure_label
+        self.wl_show_x_axis = wl_show_x_axis
+        self.wl_x_label = wl_x_label
+        self.wl_show_y_axis = wl_show_y_axis
+        self.wl_y_label = wl_y_label
+        self.wl_y_axis_tic_spacing = wl_y_axis_tic_spacing
+        self.wl_show_ends = wl_show_ends
+        self.wl_color_scheme = wl_color_scheme
+        self.wl_resolution = wl_resolution
+        self.wl_fineprint = wl_fineprint
+        if self.alphabet == "dna":
+            self.wl_sequence_type = "dna"
+        elif self.alphabet == "rna":
+            self.wl_sequence_type = "rna"
+        elif self.alphabet == "protein":
+            self.wl_sequence_type = "protein"
+        else:
+            self.wl_sequence_type = "auto"
+
         # Number of motives found
         self.nmotifs = 0
         # over-rides same attribute of MotifWrapper class
@@ -64,8 +124,8 @@ class EdenWrapper(MotifWrapper):
         # aligned list-of-strings of motifs;
         # also created by display_logo method
         self.aligned_motives_list = list()
-        # modified motives with no gaps
-        self.adapted_motives_list = list()
+        # adapted motives with no gaps
+        self.motives_list = list()
         # list of sequence logos created with WebLogo
         self.logos = list()
         # threshold for scoring sequences
@@ -127,7 +187,7 @@ class EdenWrapper(MotifWrapper):
                 seqs[i].append(col[i])
         # concatenation of single letters into strings
         for i, s in enumerate(seqs):
-            seqs[i] = [''.join(s)]
+            seqs[i] = ''.join(s)
         return seqs
 
     def _get_new_seqs(self, motif):
@@ -146,7 +206,7 @@ class EdenWrapper(MotifWrapper):
                 seqs.append(k)
                 new_seqs = self._get_new_seqs(seqs)
             modified_motives_list.append(zip(heads, new_seqs))
-        self.adapted_motives_list = modified_motives_list[:]
+        self.motives_list = modified_motives_list[:]
 
     def fit(self, seqs, neg_seqs=None):
         """Find motives with EDeN Sequence Motif."""

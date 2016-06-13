@@ -112,7 +112,6 @@ class Meme(MotifWrapper):
                  wl_resolution=96,
                  wl_fineprint='',
                  ):
-		"""Initialize a MEME Object"""
         self.output_dir = output_dir
         self.text = text
         self.alphabet = alphabet

@@ -42,6 +42,8 @@ class MuscleAlignWrapper(object):
                  diags=False,
                  maxiters=16,
                  maxhours=None,
+                 # TODO: check if this alphabet is required
+                 # it over-rides tool.alphabet
                  alphabet='dna',  # ['dna', 'rna', 'protein']
                  ):
         self.diags = diags
