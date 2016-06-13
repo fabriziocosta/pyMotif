@@ -18,8 +18,8 @@ class EdenWrapper(MotifWrapper):
                  shuffle_order=2,
                  n_iter_search=1,
                  complexity=4,
-                 # radius=None,
-                 # distance=None,
+                 # radius=None,    #TODO: check radius
+                 # distance=None,    #TODO: check distance
                  nbits=20,
                  clustering_algorithm=None,
                  n_jobs=4,
@@ -60,27 +60,93 @@ class EdenWrapper(MotifWrapper):
         # over-rides same attribute of MotifWrapper class
         self.pseudocounts = pseudocounts
         # list-of-strings representation of motifs
-        self.motives_list = list()
-        # aligned list-of-strings of motifs, created by display_logo method
+        self.original_motives_list = list()
+        # aligned list-of-strings of motifs;
+        # also created by display_logo method
         self.aligned_motives_list = list()
+        # modified motives with no gaps
+        self.adapted_motives_list = list()
         # list of sequence logos created with WebLogo
         self.logos = list()
         # threshold for scoring sequences
         self.threshold = threshold
-        # TODO: remove
-        self.motives_db = None
 
     def _get_motives_list(self, db):
         motives = list()
         for i in db.keys():
             motives.append(db[i])
-        self.motives_list = motives[:]
+        self.original_motives_list = motives[:]
 
+    def _get_aligned_motives_list(self, motives):
         aligned_motives = []
         ma = MuscleAlignWrapper()
         for i in range(len(motives)):
             aligned_motives.append(ma.transform(seqs=motives[i]))
-        self.aligned_motives = aligned_motives[:]
+        self.aligned_motives_list = aligned_motives[:]
+
+    def _seq_to_columns(self, motif):
+        motif_len = len(motif[0])
+        cols = list()
+        for i in range(motif_len):
+            col = list()
+            for j in range(len(motif)):
+                col.append(motif[j][i])
+            cols.append(col)
+        return cols
+
+    def _delete_gaps(self, columns):
+        # List to store columns with no gaps
+        new_columns = list()
+        for col in columns:
+            count = dict()
+            for i in col:
+                if i not in count.keys():
+                    count[i] = 1
+                else:
+                    count[i] += 1
+            # Get the most frequent letter of column
+            freq_letter = max(count, key=count.get)
+            # If gap is one of the most frequent letters,
+            # then discard the column
+            # Discards even if half of the column has gap letter
+            if freq_letter == '-':
+                continue
+            # Else, replace all gaps in column with most frequent letter
+            else:
+                for i, j in enumerate(col):
+                    if j == '-':
+                        col[i] = freq_letter
+                new_columns.append(col)
+        return new_columns
+
+    def _columns_to_seqs(self, columns):
+        n_seqs = len(columns[0])
+        seqs = [[] for i in range(n_seqs)]
+        for col in columns:
+            for i in range(n_seqs):
+                seqs[i].append(col[i])
+        # concatenation of single letters into strings
+        for i, s in enumerate(seqs):
+            seqs[i] = [''.join(s)]
+        return seqs
+
+    def _get_new_seqs(self, motif):
+        columns = self._seq_to_columns(motif)
+        new_columns = self._delete_gaps(columns)
+        new_seqs = self._columns_to_seqs(new_columns)
+        return new_seqs
+
+    def _adapt_motives(self, motives):
+        modified_motives_list = list()
+        for m in motives:
+            heads = list()
+            seqs = list()
+            for j, k in m:
+                heads.append(j)
+                seqs.append(k)
+                new_seqs = self._get_new_seqs(seqs)
+            modified_motives_list.append(zip(heads, new_seqs))
+        self.adapted_motives_list = modified_motives_list[:]
 
     def fit(self, seqs, neg_seqs=None):
         """Find motives with EDeN Sequence Motif."""
@@ -102,15 +168,16 @@ class EdenWrapper(MotifWrapper):
                            block_size=self.block_size,
                            pre_processor_n_jobs=self.pre_processor_n_jobs,
                            pre_processor_n_blocks=self.pre_processor_n_blocks,
+                           # TODO: check pre_processor_block_size
                            # pre_processor_block_size=self.pre_processor_block_size,
                            random_state=self.random_state,
                            )
         sm.fit(seqs=seqs, neg_seqs=neg_seqs)
 
-        # TODO: remove db
-        self.motives_db = sm.motives_db
         self.nmotifs = len(sm.motives_db.keys())
         self._get_motives_list(sm.motives_db)
+        self._get_aligned_motives_list(self.original_motives_list)
+        self._adapt_motives(self.aligned_motives_list)
 
         # create PWMs
         aligned_motives_list = self.aligned_motives_list[:]

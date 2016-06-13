@@ -42,21 +42,27 @@ class MuscleAlignWrapper(object):
                  diags=False,
                  maxiters=16,
                  maxhours=None,
+                 alphabet='dna',  # ['dna', 'rna', 'protein']
                  ):
         self.diags = diags
         self.maxiters = maxiters
         self.maxhours = maxhours
 
+        if alphabet == 'protein':
+            self.alphabet = IUPAC.protein
+        elif alphabet == 'rna':
+            self.alphabet = IUPAC.unambiguous_rna
+        else:
+            self.alphabet = IUPAC.unambiguous_dna
+
     def _seq_to_stdin_fasta(self, seqs):
         # seperating headers
         headers, instances = [list(x) for x in zip(*seqs)]
-        # num_instances = len(instances)
 
         instances_seqrecord = []
         for i, j in enumerate(instances):
             instances_seqrecord.append(
-                SeqRecord(Seq(j, IUPAC.unambiguous_dna), id=str(i)))
-            # TODO: alphabet according to data
+                SeqRecord(Seq(j, self.alphabet), id=str(i)))
 
         handle = StringIO()
         SeqIO.write(instances_seqrecord, handle, "fasta")

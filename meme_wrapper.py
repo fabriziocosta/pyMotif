@@ -112,7 +112,7 @@ class Meme(MotifWrapper):
                  wl_resolution=96,
                  wl_fineprint='',
                  ):
-
+		"""Initialize a MEME Object"""
         self.output_dir = output_dir
         self.text = text
         self.alphabet = alphabet
@@ -389,7 +389,6 @@ class Meme(MotifWrapper):
         # store length, number of occurences and e-value of each motif
         self._get_stats(self.nmotifs)
 
-        # TODO: remove self.motives_list & self. aligned_motives_list
         # get string representation of motives
         self.motives_list = list(self._get_motives_list())
 
