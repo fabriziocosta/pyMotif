@@ -9,9 +9,9 @@ from utilities import MotifWrapper
 
 
 class Meme(MotifWrapper):
-
     """
-    Wrapper for MEME 4.11.0 .
+    Wrapper for MEME 4.11.0.
+
     Usage: meme <sequence file> [options]
     To see MEME help, use MEME.display_meme_help()
     """
@@ -363,7 +363,6 @@ class Meme(MotifWrapper):
         return motives
 
     def fit(self, fasta_file=''):
-
         if not fasta_file:
             raise NameError('Input fasta file not specified')
 
@@ -445,21 +444,18 @@ class Meme(MotifWrapper):
                         match_list[seq_id][i].append(motif_location)
         return match_list
 
-    def fit_predict(self,
-                    fasta_file="",
-                    return_list=False,):
-        self.fit(fasta_file=fasta_file)
+    def fit_predict(self, fasta_file="", return_list=False):
+    	self.fit(fasta_file=fasta_file)
         return self.predict(input_seqs=fasta_file,
                             return_list=return_list)
 
-    def fit_transform(self,
-                      fasta_file="",
-                      return_match=False
-                      ):
+    def fit_transform(self, fasta_file="", return_match=False):
+    	"""Build a model and find matches in input sequences."""
         self.fit(fasta_file=fasta_file)
         return self.transform(input_seqs=fasta_file, return_match=return_match)
 
     def display_meme_help(self):
+    	"""Display MEME's CLI help."""
         cmd = "meme --help"
         io = Popen(cmd.split(" "), stdout=PIPE, stderr=PIPE)
         (error, output) = io.communicate()

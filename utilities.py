@@ -1,3 +1,4 @@
+"""Utility classes and functions used by MotifWrapper class."""
 from StringIO import StringIO
 
 from Bio import SeqIO, motifs
@@ -16,6 +17,8 @@ from corebio.seq import Alphabet, SeqList
 import numpy as np
 
 import weblogolib as wbl
+
+import random
 
 
 def _fasta_to_fasta(lines):
@@ -37,6 +40,7 @@ def _fasta_to_fasta(lines):
 
 
 class MuscleAlignWrapper(object):
+    """A wrapper to perform Muscle Alignment on sequences."""
 
     def __init__(self,
                  diags=False,
@@ -46,6 +50,7 @@ class MuscleAlignWrapper(object):
                  # it over-rides tool.alphabet
                  alphabet='dna',  # ['dna', 'rna', 'protein']
                  ):
+        """Initialize an instance."""
         self.diags = diags
         self.maxiters = maxiters
         self.maxhours = maxhours
@@ -92,6 +97,7 @@ class MuscleAlignWrapper(object):
         return zip(headers, motif_seqs)
 
     def transform(self, seqs=[]):
+        """Carry out alignment."""
         headers, data = self._seq_to_stdin_fasta(seqs)
         stdout = self._perform_ma(data)
         aligned_seqs = self._fasta_to_seqs(headers, stdout)
@@ -99,6 +105,7 @@ class MuscleAlignWrapper(object):
 
 
 class Weblogo(object):
+    """A wrapper of weblogolib for creating sequence."""
 
     def __init__(self,
 
@@ -126,7 +133,7 @@ class Weblogo(object):
                  resolution=96,
                  fineprint='',
                  ):
-
+        """Initialize an instance."""
         options = wbl.LogoOptions()
 
         options.stacks_per_line = stacks_per_line
@@ -160,7 +167,8 @@ class Weblogo(object):
         self.output_format = output_format
 
     def create_logo(self, seqs=[]):
-        # seperating headers
+        """Create sequence logo for input sequences."""
+        # seperate headers
         headers, instances = [list(x)
                               for x in zip(*seqs)]
 
@@ -186,6 +194,7 @@ class Weblogo(object):
 
 
 class MotifWrapper(object):
+    """A generic wrapper for motif discovery tools."""
 
     def __init__(self,
                  alphabet='dna',  # ['dna', 'rna', 'protein']
@@ -219,7 +228,7 @@ class MotifWrapper(object):
                  wl_resolution=96,
                  wl_fineprint='',
                  ):
-
+        """Initialize an instance of MotifWrapper."""
         self.pseudocounts = pseudocounts
         self.alphabet = alphabet
         self.threshold = 1.0e-9
@@ -287,12 +296,14 @@ class MotifWrapper(object):
         return motif_obj.counts.normalize(self.pseudocounts)
 
     def fit(self, motives=list()):
+        """Compute PWM for each motif found."""
         pwms = list()
         for i in range(len(motives)):
             pwms.append(self._get_pwm(input_motif=motives[i]))
         self.pwms_list = pwms[:]
 
     def display(self, motif_num=None):
+        """Display PWM of motives as dictionaries."""
         if motif_num is None:
             for i in range(len(self.pwms_list)):
                 print self.pwms_list[i]
@@ -346,10 +357,8 @@ class MotifWrapper(object):
             seqs.append(sequence)
         return zip(headers, seqs)
 
-    def predict(self,
-                input_seqs='',
-                return_list=True,
-                ):
+    def predict(self, input_seqs='', return_list=True):
+        """Score each motif found according to PWM."""
         if '.fa' in input_seqs:
             input_seqs = self._parse_fasta_file(fasta_file=input_seqs)
         headers, sequences = [list(x) for x in zip(*input_seqs)]
@@ -389,6 +398,11 @@ class MotifWrapper(object):
         return zip(start_indexes, last_indexes, scores)
 
     def transform(self, input_seqs='', return_match=True):
+        """Return summary of matches of each motif.
+
+        return_match: True returns (start, end, score)-tuple for each
+        motif found, False returns a summary of motives found
+        """
         if '.fa' in input_seqs:
             input_seqs = self._parse_fasta_file(fasta_file=input_seqs)
         headers, sequences = [list(x) for x in zip(*input_seqs)]
@@ -416,6 +430,7 @@ class MotifWrapper(object):
         return match_list
 
     def align_motives(self):
+        """Perform Muscle Alignment on motives."""
         motives = list(self.motives_list)
         aligned_motives = list()
         ma = MuscleAlignWrapper(diags=self.ma_diags,
@@ -464,8 +479,11 @@ class MotifWrapper(object):
         return logos_list
 
     def display_logo(self, motif_num=None, do_alignment=True):
-        # Displays logos of all motifs if motif_num is not specified
+        """Display sequence logos of motives.
 
+        motif_num: None displays all motives, i displays i-th motif
+        do_alignment: Perform Muscle Alignment on motives before creating logos
+        """
         self.logos = self._get_logos_list(do_alignment=do_alignment)[:]
 
         if motif_num is not None:
@@ -473,3 +491,74 @@ class MotifWrapper(object):
         else:
             for i in range(self.nmotifs):
                 display(Image(self.logos[i]))
+
+    def adapt_motives(self, motives):
+        """Perform adaption for motives of different lengths.
+
+        If a single motif consists of instances of different lengths,
+        then adaption trims the motif by removing columns with more
+        gaps than characters.
+        """
+        modified_motives_list = list()
+        for m in motives:
+            heads = list()
+            seqs = list()
+            for j, k in m:
+                heads.append(j)
+                seqs.append(k)
+                new_seqs = self._get_new_seqs(seqs)
+            modified_motives_list.append(zip(heads, new_seqs))
+        self.motives_list = modified_motives_list[:]
+
+    def _get_new_seqs(self, motif):
+        columns = self._seq_to_columns(motif)
+        new_columns = self._delete_gaps(columns)
+        new_seqs = self._columns_to_seqs(new_columns)
+        return new_seqs
+
+    def _seq_to_columns(self, motif):
+        motif_len = len(motif[0])
+        cols = list()
+        for i in range(motif_len):
+            col = list()
+            for j in range(len(motif)):
+                col.append(motif[j][i])
+            cols.append(col)
+        return cols
+
+    def _delete_gaps(self, columns):
+        # List to store columns with no gaps
+        new_columns = list()
+        for col in columns:
+            count = dict()
+            for i in col:
+                if i not in count.keys():
+                    count[i] = 1
+                else:
+                    count[i] += 1
+
+            freq_letter = max(count, key=count.get)
+            non_gap_letters = [x for x in col if x != 'a']
+            # If gap is one of the most frequent letters,
+            # then discard the column
+            # Discards even if half of the column has gap letter
+            if freq_letter == '-':
+                continue
+            # Else, replace all gaps in column with one of the other letters
+            else:
+                for i, j in enumerate(col):
+                    if j == '-':
+                        col[i] = random.choice(non_gap_letters)
+                new_columns.append(col)
+        return new_columns
+
+    def _columns_to_seqs(self, columns):
+        n_seqs = len(columns[0])
+        seqs = [[] for i in range(n_seqs)]
+        for col in columns:
+            for i in range(n_seqs):
+                seqs[i].append(col[i])
+        # concatenation of single letters into strings
+        for i, s in enumerate(seqs):
+            seqs[i] = ''.join(s)
+        return seqs
