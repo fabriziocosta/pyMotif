@@ -20,6 +20,8 @@ import weblogolib as wbl
 
 import random
 
+from Bio import MarkovModel
+
 
 def _fasta_to_fasta(lines):
     seq = ""
@@ -198,6 +200,7 @@ class MotifWrapper(object):
 
     def __init__(self,
                  alphabet='dna',  # ['dna', 'rna', 'protein']
+                 gap_in_alphabet=True,
                  pseudocounts=0,    # {'A':0, 'C': 0, 'G': 0, 'T': 0}
 
                  # parameters for Muscle Alignment
@@ -231,6 +234,7 @@ class MotifWrapper(object):
         """Initialize an instance of MotifWrapper."""
         self.pseudocounts = pseudocounts
         self.alphabet = alphabet
+        self.gap_in_alphabet = gap_in_alphabet
         self.threshold = 1.0e-9
 
         self.ma_diags = ma_diags
@@ -282,11 +286,20 @@ class MotifWrapper(object):
         motif_seq = list()
 
         if self.alphabet == 'protein':
-            alphabet = Gapped(IUPAC.protein, "-")
+            if self.gap_in_alphabet is False:
+                alphabet = IUPAC.protein
+            else:
+                alphabet = Gapped(IUPAC.protein, "-")
         elif self.alphabet == 'rna':
-            alphabet = Gapped(IUPAC.unambiguous_rna, "-")
+            if self.gap_in_alphabet is False:
+                alphabet = IUPAC.unambiguous_rna
+            else:
+                alphabet = Gapped(IUPAC.unambiguous_rna, "-")
         else:
-            alphabet = Gapped(IUPAC.unambiguous_dna, "-")
+            if self.gap_in_alphabet is False:
+                alphabet = IUPAC.unambiguous_dna
+            else:
+                alphabet = Gapped(IUPAC.unambiguous_dna, "-")
 
         for i in instances:
             # motif as Bio.Seq instance
@@ -296,7 +309,7 @@ class MotifWrapper(object):
         return motif_obj.counts.normalize(self.pseudocounts)
 
     def fit(self, motives=list()):
-        """Compute PWM for each motif found."""
+        """Compute PWM for each motif found by motif discovery tool."""
         pwms = list()
         for i in range(len(motives)):
             pwms.append(self._get_pwm(input_motif=motives[i]))
@@ -358,7 +371,7 @@ class MotifWrapper(object):
         return zip(headers, seqs)
 
     def predict(self, input_seqs='', return_list=True):
-        """Score each motif found according to PWM."""
+        """Score each motif found with input sequence according to PWM."""
         if '.fa' in input_seqs:
             input_seqs = self._parse_fasta_file(fasta_file=input_seqs)
         headers, sequences = [list(x) for x in zip(*input_seqs)]
@@ -371,7 +384,7 @@ class MotifWrapper(object):
                 score = self.score(motif_num=j + 1, seq=s)
                 for scr in score:
                     if scr > self.threshold:
-                        if sum(score) > self.threshold:
+                        if max(score) > self.threshold:
                             seq_lists[i].append(j)
 
         if return_list is True:
@@ -508,7 +521,7 @@ class MotifWrapper(object):
                 seqs.append(k)
                 new_seqs = self._get_new_seqs(seqs)
             modified_motives_list.append(zip(heads, new_seqs))
-        self.motives_list = modified_motives_list[:]
+        return modified_motives_list
 
     def _get_new_seqs(self, motif):
         columns = self._seq_to_columns(motif)
@@ -562,3 +575,38 @@ class MotifWrapper(object):
         for i, s in enumerate(seqs):
             seqs[i] = ''.join(s)
         return seqs
+
+    def score_mm(self, motif_num=1, seq='', zero_padding=False):
+        """Build a HMM and score input sequence."""
+        try:
+            # Only EDeN has original_motives_list
+            input_motif = self.original_motives_list[motif_num - 1]
+        except AttributeError:
+            input_motif = self.motives_list[motif_num - 1]
+
+        headers, instances = [list(x) for x in zip(*input_motif)]
+
+        lengths = [len(instances[i]) for i in range(len(instances))]
+        max_len = max(lengths)
+        # TODO: change max_len for median
+        states = [str(i + 1) for i in range(max_len)]
+
+        if self.alphabet == 'dna':
+            alphabet = 'ACGT'
+        elif self.alphabet == 'rna':
+            alphabet = 'ACGU'
+        else:
+            alphabet = 'ACDEFGHIKLMNPQRSTVWY'
+        mm = MarkovModel.train_bw(states=states,
+                                  alphabet=alphabet,
+                                  training_data=instances)
+        score = list()
+        for i in range(len(seq) - max_len + 1):
+            seq_segment = seq[i:i + max_len - 1]
+            result = MarkovModel.find_states(mm, seq_segment)
+            score.append(result[0][1])
+
+        if zero_padding is True:
+            for i in range(len(seq) - len(score)):
+                score.append(0)
+        return score

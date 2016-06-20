@@ -1,11 +1,15 @@
+"""This is a wrapper of the motif discovery tool MEME."""
 import os
-import re
 
 from subprocess import PIPE, Popen
 
 from Bio import motifs
 
 from utilities import MotifWrapper
+
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class Meme(MotifWrapper):
@@ -23,6 +27,7 @@ class Meme(MotifWrapper):
 
                  # Alphabet
                  alphabet="protein",  # ["dna", "rna", "protein"]
+                 gap_in_alphabet=True,
 
                  # Contributing Site Distribution
                  mod="zoops",
@@ -112,9 +117,11 @@ class Meme(MotifWrapper):
                  wl_resolution=96,
                  wl_fineprint='',
                  ):
+        """Initialize a MemeWrapper Object."""
         self.output_dir = output_dir
         self.text = text
         self.alphabet = alphabet
+        self.gap_in_alphabet = gap_in_alphabet
         self.mod = mod
         self.nmotifs = nmotifs
         self.evt = evt
@@ -329,11 +336,7 @@ class Meme(MotifWrapper):
         io = Popen(cmd.split(" "), stdout=PIPE, stderr=PIPE)
         (stderr, stdout) = io.communicate()
 
-        if re.search('error', stdout):
-            raise NameError(stdout.split('\n')[0])
-        elif stderr:
-            raise NameError(stdout)
-        # return stdout
+        logger.info(stdout)
 
     def _get_stats(self, n_motifs):
         widths = list()
@@ -363,6 +366,7 @@ class Meme(MotifWrapper):
         return motives
 
     def fit(self, fasta_file=''):
+        """Save the output of MEME in specified folder and parse it."""
         if not fasta_file:
             raise NameError('Input fasta file not specified')
 
@@ -445,17 +449,18 @@ class Meme(MotifWrapper):
         return match_list
 
     def fit_predict(self, fasta_file="", return_list=False):
-    	self.fit(fasta_file=fasta_file)
+        """Build a model and find motif predictions in training data."""
+        self.fit(fasta_file=fasta_file)
         return self.predict(input_seqs=fasta_file,
                             return_list=return_list)
 
     def fit_transform(self, fasta_file="", return_match=False):
-    	"""Build a model and find matches in input sequences."""
+        """Build a model and find matches in input sequences."""
         self.fit(fasta_file=fasta_file)
         return self.transform(input_seqs=fasta_file, return_match=return_match)
 
     def display_meme_help(self):
-    	"""Display MEME's CLI help."""
+        """Display MEME's CLI help."""
         cmd = "meme --help"
         io = Popen(cmd.split(" "), stdout=PIPE, stderr=PIPE)
         (error, output) = io.communicate()

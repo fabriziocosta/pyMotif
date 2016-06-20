@@ -9,6 +9,7 @@ class EdenWrapper(MotifWrapper):
 
     def __init__(self,
                  alphabet='dna',
+                 gap_in_alphabet=True,
                  min_subarray_size=7,
                  max_subarray_size=10,
                  min_motif_count=1,
@@ -62,6 +63,7 @@ class EdenWrapper(MotifWrapper):
                  ):
         """Initialize a EdenWrapper object."""
         self.alphabet = alphabet
+        self.gap_in_alphabet = gap_in_alphabet
         self.min_subarray_size = min_subarray_size
         self.max_subarray_size = max_subarray_size
         self.min_motif_count = min_motif_count
@@ -135,14 +137,14 @@ class EdenWrapper(MotifWrapper):
         motives = list()
         for i in db.keys():
             motives.append(db[i])
-        self.original_motives_list = motives[:]
+        return motives
 
     def _get_aligned_motives_list(self, motives):
         aligned_motives = []
         ma = MuscleAlignWrapper()
         for i in range(len(motives)):
             aligned_motives.append(ma.transform(seqs=motives[i]))
-        self.aligned_motives_list = aligned_motives[:]
+        return aligned_motives
 
     def fit(self, seqs, neg_seqs=None):
         """Find motives with EDeN.SequenceMotif."""
@@ -171,9 +173,10 @@ class EdenWrapper(MotifWrapper):
         sm.fit(seqs=seqs, neg_seqs=neg_seqs)
 
         self.nmotifs = len(sm.motives_db.keys())
-        self._get_motives_list(sm.motives_db)
-        self._get_aligned_motives_list(self.original_motives_list)
-        self.adapt_motives(self.aligned_motives_list)
+        self.original_motives_list = self._get_motives_list(sm.motives_db)[:]
+        self.aligned_motives_list = self._get_aligned_motives_list(
+            self.original_motives_list)[:]
+        self.motives_list = self.adapt_motives(self.aligned_motives_list)[:]
 
         # create PWMs
         aligned_motives_list = self.aligned_motives_list[:]
