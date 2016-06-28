@@ -588,15 +588,21 @@ class MotifWrapper(object):
 
         lengths = [len(instances[i]) for i in range(len(instances))]
         max_len = max(lengths)
+        seq_len = len(seq)
+
+        if seq_len < max_len:
+            raise ValueError('Sequence must be at least as long as the motif')
+
+        # Hidden states for Markov Model
         # TODO: change max_len for median
         states = [str(i + 1) for i in range(max_len)]
 
-        if self.alphabet == 'dna':
-            alphabet = 'ACGT'
+        if self.alphabet == 'protein':
+            alphabet = 'ACDEFGHIKLMNPQRSTVWY'
         elif self.alphabet == 'rna':
             alphabet = 'ACGU'
         else:
-            alphabet = 'ACDEFGHIKLMNPQRSTVWY'
+            alphabet = 'ACGT'
         mm = MarkovModel.train_bw(states=states,
                                   alphabet=alphabet,
                                   training_data=instances)
