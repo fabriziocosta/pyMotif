@@ -22,6 +22,8 @@ import random
 
 from Bio import MarkovModel
 
+import math
+
 
 def _fasta_to_fasta(lines):
     seq = ""
@@ -341,8 +343,8 @@ class MotifWrapper(object):
         else:
             return self._create_matrix(motif_num - 1)
 
-    def score(self, motif_num=1, seq='', zero_padding=False):
-        """Return the score of a sequence according to specified motif."""
+    def score_pwm(self, motif_num=1, seq='', zero_padding=True):
+        """Return score_list of a sequence according to PWM of the motif."""
         pwm_i = self.pwms_list[motif_num - 1]
         seq_len = len(seq)
         motif_len = len(pwm_i.itervalues().next())
@@ -381,7 +383,7 @@ class MotifWrapper(object):
 
         for i, s in enumerate(sequences):
             for j in range(len(self.pwms_list)):
-                score = self.score(motif_num=j + 1, seq=s)
+                score = self.score_pwm(motif_num=j + 1, seq=s)
                 for scr in score:
                     if scr > self.threshold:
                         if max(score) > self.threshold:
@@ -576,8 +578,8 @@ class MotifWrapper(object):
             seqs[i] = ''.join(s)
         return seqs
 
-    def score_mm(self, motif_num=1, seq='', zero_padding=False):
-        """Build a HMM and score input sequence."""
+    def score_mm(self, motif_num=1, seq='', zero_padding=True):
+        """Return log_score_list of a sequence according to motif's HMM."""
         try:
             # Only EDeN has original_motives_list
             input_motif = self.original_motives_list[motif_num - 1]
@@ -587,15 +589,14 @@ class MotifWrapper(object):
         headers, instances = [list(x) for x in zip(*input_motif)]
 
         lengths = [len(instances[i]) for i in range(len(instances))]
-        max_len = max(lengths)
+        median_len = int(math.ceil(np.median(lengths)))
         seq_len = len(seq)
 
-        if seq_len < max_len:
+        if seq_len < median_len:
             raise ValueError('Sequence must be at least as long as the motif')
 
         # Hidden states for Markov Model
-        # TODO: change max_len for median
-        states = [str(i + 1) for i in range(max_len)]
+        states = [str(i + 1) for i in range(median_len)]
 
         if self.alphabet == 'protein':
             alphabet = 'ACDEFGHIKLMNPQRSTVWY'
@@ -607,12 +608,15 @@ class MotifWrapper(object):
                                   alphabet=alphabet,
                                   training_data=instances)
         score = list()
-        for i in range(len(seq) - max_len + 1):
-            seq_segment = seq[i:i + max_len - 1]
+        for i in range(len(seq) - median_len + 1):
+            seq_segment = seq[i:i + median_len - 1]
             result = MarkovModel.find_states(mm, seq_segment)
             score.append(result[0][1])
 
+        eps = 1e-100
+        log_score = [math.log(x + eps) for x in score]
+
         if zero_padding is True:
             for i in range(len(seq) - len(score)):
-                score.append(0)
-        return score
+                log_score.append(0)
+        return log_score

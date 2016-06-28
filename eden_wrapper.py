@@ -19,8 +19,8 @@ class EdenWrapper(MotifWrapper):
                  shuffle_order=2,
                  n_iter_search=1,
                  complexity=4,
-                 # radius=None,    #TODO: check radius
-                 # distance=None,    #TODO: check distance
+                 # radius=None,    # TODO: check radius
+                 # distance=None,    # TODO: check distance
                  nbits=20,
                  clustering_algorithm=None,
                  n_jobs=4,
@@ -62,28 +62,30 @@ class EdenWrapper(MotifWrapper):
                  wl_fineprint='',
                  ):
         """Initialize a EdenWrapper object."""
+        self.sm = SequenceMotif(min_subarray_size=min_subarray_size,
+                                max_subarray_size=max_subarray_size,
+                                min_motif_count=min_motif_count,
+                                min_cluster_size=min_cluster_size,
+                                training_size=training_size,
+                                negative_ratio=negative_ratio,
+                                shuffle_order=shuffle_order,
+                                n_iter_search=n_iter_search,
+                                complexity=complexity,
+                                # radius=radius,
+                                # distance=distance,
+                                nbits=nbits,
+                                clustering_algorithm=clustering_algorithm,
+                                n_jobs=n_jobs,
+                                n_blocks=n_blocks,
+                                block_size=block_size,
+                                pre_processor_n_jobs=pre_processor_n_jobs,
+                                pre_processor_n_blocks=pre_processor_n_blocks,
+                                # TODO: check pre_processor_block_size
+                                # pre_processor_block_size=pre_processor_block_size,
+                                random_state=random_state,
+                                )
         self.alphabet = alphabet
         self.gap_in_alphabet = gap_in_alphabet
-        self.min_subarray_size = min_subarray_size
-        self.max_subarray_size = max_subarray_size
-        self.min_motif_count = min_motif_count
-        self.min_cluster_size = min_cluster_size
-        self.training_size = training_size
-        self.negative_ratio = negative_ratio
-        self.shuffle_order = shuffle_order
-        self.n_iter_search = n_iter_search
-        self.complexity = complexity
-        # self.radius = radius
-        # self.distance = distance
-        self.nbits = nbits
-        self.clustering_algorithm = clustering_algorithm
-        self.n_jobs = n_jobs
-        self.n_blocks = n_blocks
-        self.block_size = block_size
-        self.pre_processor_n_jobs = pre_processor_n_jobs
-        self.pre_processor_n_blocks = pre_processor_n_blocks
-        self.pre_processor_block_size = pre_processor_block_size
-        self.random_state = random_state
 
         self.ma_diags = ma_diags
         self.ma_maxiters = ma_maxiters
@@ -148,35 +150,15 @@ class EdenWrapper(MotifWrapper):
 
     def fit(self, seqs, neg_seqs=None):
         """Find motives with EDeN.SequenceMotif."""
-        sm = SequenceMotif(min_subarray_size=self.min_subarray_size,
-                           max_subarray_size=self.max_subarray_size,
-                           min_motif_count=self.min_motif_count,
-                           min_cluster_size=self.min_cluster_size,
-                           training_size=self.training_size,
-                           negative_ratio=self.negative_ratio,
-                           shuffle_order=self.shuffle_order,
-                           n_iter_search=self.n_iter_search,
-                           complexity=self.complexity,
-                           # radius=self.radius,
-                           # distance=self.distance,
-                           nbits=self.nbits,
-                           clustering_algorithm=self.clustering_algorithm,
-                           n_jobs=self.n_jobs,
-                           n_blocks=self.n_blocks,
-                           block_size=self.block_size,
-                           pre_processor_n_jobs=self.pre_processor_n_jobs,
-                           pre_processor_n_blocks=self.pre_processor_n_blocks,
-                           # TODO: check pre_processor_block_size
-                           # pre_processor_block_size=self.pre_processor_block_size,
-                           random_state=self.random_state,
-                           )
-        sm.fit(seqs=seqs, neg_seqs=neg_seqs)
+        self.sm.fit(seqs=seqs, neg_seqs=neg_seqs)
 
-        self.nmotifs = len(sm.motives_db.keys())
-        self.original_motives_list = self._get_motives_list(sm.motives_db)[:]
+        self.nmotifs = len(self.sm.motives_db.keys())
+        self.original_motives_list = self._get_motives_list(
+            self.sm.motives_db)[:]
         self.aligned_motives_list = self._get_aligned_motives_list(
             self.original_motives_list)[:]
-        self.motives_list = self.adapt_motives(self.aligned_motives_list)[:]
+        self.motives_list = self.adapt_motives(
+            self.aligned_motives_list)[:]
 
         # create PWMs
         aligned_motives_list = self.aligned_motives_list[:]
