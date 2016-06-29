@@ -1,3 +1,4 @@
+"""Utility classes and functions used by MotifWrapper class."""
 from StringIO import StringIO
 
 from Bio import SeqIO, motifs
@@ -16,6 +17,12 @@ from corebio.seq import Alphabet, SeqList
 import numpy as np
 
 import weblogolib as wbl
+
+import random
+
+from Bio import MarkovModel
+
+import math
 
 
 def _fasta_to_fasta(lines):
@@ -37,26 +44,36 @@ def _fasta_to_fasta(lines):
 
 
 class MuscleAlignWrapper(object):
+    """A wrapper to perform Muscle Alignment on sequences."""
 
     def __init__(self,
                  diags=False,
                  maxiters=16,
                  maxhours=None,
+                 # TODO: check if this alphabet is required
+                 # it over-rides tool.alphabet
+                 alphabet='dna',  # ['dna', 'rna', 'protein']
                  ):
+        """Initialize an instance."""
         self.diags = diags
         self.maxiters = maxiters
         self.maxhours = maxhours
 
+        if alphabet == 'protein':
+            self.alphabet = IUPAC.protein
+        elif alphabet == 'rna':
+            self.alphabet = IUPAC.unambiguous_rna
+        else:
+            self.alphabet = IUPAC.unambiguous_dna
+
     def _seq_to_stdin_fasta(self, seqs):
         # seperating headers
         headers, instances = [list(x) for x in zip(*seqs)]
-        # num_instances = len(instances)
 
         instances_seqrecord = []
         for i, j in enumerate(instances):
             instances_seqrecord.append(
-                SeqRecord(Seq(j, IUPAC.unambiguous_dna), id=str(i)))
-            # TODO: alphabet according to data
+                SeqRecord(Seq(j, self.alphabet), id=str(i)))
 
         handle = StringIO()
         SeqIO.write(instances_seqrecord, handle, "fasta")
@@ -84,6 +101,7 @@ class MuscleAlignWrapper(object):
         return zip(headers, motif_seqs)
 
     def transform(self, seqs=[]):
+        """Carry out alignment."""
         headers, data = self._seq_to_stdin_fasta(seqs)
         stdout = self._perform_ma(data)
         aligned_seqs = self._fasta_to_seqs(headers, stdout)
@@ -91,6 +109,7 @@ class MuscleAlignWrapper(object):
 
 
 class Weblogo(object):
+    """A wrapper of weblogolib for creating sequence."""
 
     def __init__(self,
 
@@ -118,7 +137,7 @@ class Weblogo(object):
                  resolution=96,
                  fineprint='',
                  ):
-
+        """Initialize an instance."""
         options = wbl.LogoOptions()
 
         options.stacks_per_line = stacks_per_line
@@ -152,7 +171,8 @@ class Weblogo(object):
         self.output_format = output_format
 
     def create_logo(self, seqs=[]):
-        # seperating headers
+        """Create sequence logo for input sequences."""
+        # seperate headers
         headers, instances = [list(x)
                               for x in zip(*seqs)]
 
@@ -178,9 +198,11 @@ class Weblogo(object):
 
 
 class MotifWrapper(object):
+    """A generic wrapper for motif discovery tools."""
 
     def __init__(self,
                  alphabet='dna',  # ['dna', 'rna', 'protein']
+                 gap_in_alphabet=True,
                  pseudocounts=0,    # {'A':0, 'C': 0, 'G': 0, 'T': 0}
 
                  # parameters for Muscle Alignment
@@ -211,9 +233,11 @@ class MotifWrapper(object):
                  wl_resolution=96,
                  wl_fineprint='',
                  ):
-
+        """Initialize an instance of MotifWrapper."""
         self.pseudocounts = pseudocounts
         self.alphabet = alphabet
+        self.gap_in_alphabet = gap_in_alphabet
+        self.threshold = 1.0e-9
 
         self.ma_diags = ma_diags
         self.ma_maxiters = ma_maxiters
@@ -247,6 +271,7 @@ class MotifWrapper(object):
         else:
             self.wl_sequence_type = "auto"
 
+        # list of PWMs corresponding to each motif
         self.pwms_list = list()
         # list-of-strings representation of motifs
         self.motives_list = list()
@@ -263,11 +288,20 @@ class MotifWrapper(object):
         motif_seq = list()
 
         if self.alphabet == 'protein':
-            alphabet = Gapped(IUPAC.protein, "-")
+            if self.gap_in_alphabet is False:
+                alphabet = IUPAC.protein
+            else:
+                alphabet = Gapped(IUPAC.protein, "-")
         elif self.alphabet == 'rna':
-            alphabet = Gapped(IUPAC.unambiguous_rna, "-")
+            if self.gap_in_alphabet is False:
+                alphabet = IUPAC.unambiguous_rna
+            else:
+                alphabet = Gapped(IUPAC.unambiguous_rna, "-")
         else:
-            alphabet = Gapped(IUPAC.unambiguous_dna, "-")
+            if self.gap_in_alphabet is False:
+                alphabet = IUPAC.unambiguous_dna
+            else:
+                alphabet = Gapped(IUPAC.unambiguous_dna, "-")
 
         for i in instances:
             # motif as Bio.Seq instance
@@ -277,12 +311,14 @@ class MotifWrapper(object):
         return motif_obj.counts.normalize(self.pseudocounts)
 
     def fit(self, motives=list()):
+        """Compute PWM for each motif found by motif discovery tool."""
         pwms = list()
         for i in range(len(motives)):
             pwms.append(self._get_pwm(input_motif=motives[i]))
         self.pwms_list = pwms[:]
 
     def display(self, motif_num=None):
+        """Display PWM of motives as dictionaries."""
         if motif_num is None:
             for i in range(len(self.pwms_list)):
                 print self.pwms_list[i]
@@ -298,9 +334,7 @@ class MotifWrapper(object):
         return np.array(m)
 
     def matrix(self, motif_num=None):
-        """
-        if motif_num not specified, returns a list of numpy arrays
-        """
+        """If motif_num not specified, returns a list of numpy arrays."""
         if motif_num is None:
             matrix_list = []
             for i in range(len(self.pwms_list)):
@@ -309,10 +343,8 @@ class MotifWrapper(object):
         else:
             return self._create_matrix(motif_num - 1)
 
-    def score(self, motif_num=1, seq='', zero_padding=False):
-        """
-        Scores a single sequence according to specified motif
-        """
+    def score_pwm(self, motif_num=1, seq='', zero_padding=True):
+        """Return score_list of a sequence according to PWM of the motif."""
         pwm_i = self.pwms_list[motif_num - 1]
         seq_len = len(seq)
         motif_len = len(pwm_i.itervalues().next())
@@ -340,14 +372,10 @@ class MotifWrapper(object):
             seqs.append(sequence)
         return zip(headers, seqs)
 
-    def predict(self,
-                fasta_file='',
-                return_list=True,
-                threshold=1.0e-9,
-                append_score=False):
-        # TODO: remove append_score after debugging is complete
-        # TODO: also remove append_score from Meme.predict and fit_predict
-        input_seqs = self._parse_fasta_file(fasta_file)
+    def predict(self, input_seqs='', return_list=True):
+        """Score each motif found with input sequence according to PWM."""
+        if '.fa' in input_seqs:
+            input_seqs = self._parse_fasta_file(fasta_file=input_seqs)
         headers, sequences = [list(x) for x in zip(*input_seqs)]
 
         # motives list for every sequence
@@ -355,22 +383,17 @@ class MotifWrapper(object):
 
         for i, s in enumerate(sequences):
             for j in range(len(self.pwms_list)):
-                score = self.score(motif_num=j + 1, seq=s)
+                score = self.score_pwm(motif_num=j + 1, seq=s)
                 for scr in score:
-                    if scr > threshold:
-                        # seq_lists[i].append(j)
-                        if sum(score) > threshold:
-                            # TODO: remove append score, only else's line
-                            # remains
-                            if append_score is True:
-                                seq_lists[i].append(score)
-                            else:
-                                seq_lists[i].append(j)
+                    if scr > self.threshold:
+                        if max(score) > self.threshold:
+                            seq_lists[i].append(j)
+
         if return_list is True:
             return seq_lists
         return [len(i) for i in seq_lists]
 
-    def _get_occurence_indexandscore(self, seq, motif_num, threshold):
+    def _get_occurence_indexandscore(self, seq, motif_num):
         pwm_i = self.pwms_list[motif_num]
         seq_len = len(seq)
         motif_len = len(pwm_i.itervalues().next())
@@ -383,14 +406,20 @@ class MotifWrapper(object):
             for j in range(motif_len):
                 letter = seq[i + j]
                 segment_score *= pwm_i[letter][j]
-            if segment_score > threshold:
+            if segment_score > self.threshold:
                 scores.append(segment_score)
                 start_indexes.append(i + 1)
         last_indexes = [i + motif_len for i in start_indexes]
         return zip(start_indexes, last_indexes, scores)
 
-    def transform(self, fasta_file='', return_match=True, threshold=1.0e-9):
-        input_seqs = self._parse_fasta_file(fasta_file)
+    def transform(self, input_seqs='', return_match=True):
+        """Return summary of matches of each motif.
+
+        return_match: True returns (start, end, score)-tuple for each
+        motif found, False returns a summary of motives found
+        """
+        if '.fa' in input_seqs:
+            input_seqs = self._parse_fasta_file(fasta_file=input_seqs)
         headers, sequences = [list(x) for x in zip(*input_seqs)]
         match_list = [
                      [
@@ -401,8 +430,7 @@ class MotifWrapper(object):
 
         for i, s in enumerate(sequences):
             for j in range(len(self.pwms_list)):
-                occs = self._get_occurence_indexandscore(
-                    seq=s, motif_num=j, threshold=threshold)
+                occs = self._get_occurence_indexandscore(seq=s, motif_num=j)
                 match_list[i][j] = occs
 
         if return_match is False:
@@ -417,6 +445,7 @@ class MotifWrapper(object):
         return match_list
 
     def align_motives(self):
+        """Perform Muscle Alignment on motives."""
         motives = list(self.motives_list)
         aligned_motives = list()
         ma = MuscleAlignWrapper(diags=self.ma_diags,
@@ -465,8 +494,11 @@ class MotifWrapper(object):
         return logos_list
 
     def display_logo(self, motif_num=None, do_alignment=True):
-        # Displays logos of all motifs if motif_num is not specified
+        """Display sequence logos of motives.
 
+        motif_num: None displays all motives, i displays i-th motif
+        do_alignment: Perform Muscle Alignment on motives before creating logos
+        """
         self.logos = self._get_logos_list(do_alignment=do_alignment)[:]
 
         if motif_num is not None:
@@ -474,3 +506,117 @@ class MotifWrapper(object):
         else:
             for i in range(self.nmotifs):
                 display(Image(self.logos[i]))
+
+    def adapt_motives(self, motives):
+        """Perform adaption for motives of different lengths.
+
+        If a single motif consists of instances of different lengths,
+        then adaption trims the motif by removing columns with more
+        gaps than characters.
+        """
+        modified_motives_list = list()
+        for m in motives:
+            heads = list()
+            seqs = list()
+            for j, k in m:
+                heads.append(j)
+                seqs.append(k)
+                new_seqs = self._get_new_seqs(seqs)
+            modified_motives_list.append(zip(heads, new_seqs))
+        return modified_motives_list
+
+    def _get_new_seqs(self, motif):
+        columns = self._seq_to_columns(motif)
+        new_columns = self._delete_gaps(columns)
+        new_seqs = self._columns_to_seqs(new_columns)
+        return new_seqs
+
+    def _seq_to_columns(self, motif):
+        motif_len = len(motif[0])
+        cols = list()
+        for i in range(motif_len):
+            col = list()
+            for j in range(len(motif)):
+                col.append(motif[j][i])
+            cols.append(col)
+        return cols
+
+    def _delete_gaps(self, columns):
+        # List to store columns with no gaps
+        new_columns = list()
+        for col in columns:
+            count = dict()
+            for i in col:
+                if i not in count.keys():
+                    count[i] = 1
+                else:
+                    count[i] += 1
+
+            freq_letter = max(count, key=count.get)
+            non_gap_letters = [x for x in col if x != 'a']
+            # If gap is one of the most frequent letters,
+            # then discard the column
+            # Discards even if half of the column has gap letter
+            if freq_letter == '-':
+                continue
+            # Else, replace all gaps in column with one of the other letters
+            else:
+                for i, j in enumerate(col):
+                    if j == '-':
+                        col[i] = random.choice(non_gap_letters)
+                new_columns.append(col)
+        return new_columns
+
+    def _columns_to_seqs(self, columns):
+        n_seqs = len(columns[0])
+        seqs = [[] for i in range(n_seqs)]
+        for col in columns:
+            for i in range(n_seqs):
+                seqs[i].append(col[i])
+        # concatenation of single letters into strings
+        for i, s in enumerate(seqs):
+            seqs[i] = ''.join(s)
+        return seqs
+
+    def score_mm(self, motif_num=1, seq='', zero_padding=True):
+        """Return log_score_list of a sequence according to motif's HMM."""
+        try:
+            # Only EDeN has original_motives_list
+            input_motif = self.original_motives_list[motif_num - 1]
+        except AttributeError:
+            input_motif = self.motives_list[motif_num - 1]
+
+        headers, instances = [list(x) for x in zip(*input_motif)]
+
+        lengths = [len(instances[i]) for i in range(len(instances))]
+        median_len = int(math.ceil(np.median(lengths)))
+        seq_len = len(seq)
+
+        if seq_len < median_len:
+            raise ValueError('Sequence must be at least as long as the motif')
+
+        # Hidden states for Markov Model
+        states = [str(i + 1) for i in range(median_len)]
+
+        if self.alphabet == 'protein':
+            alphabet = 'ACDEFGHIKLMNPQRSTVWY'
+        elif self.alphabet == 'rna':
+            alphabet = 'ACGU'
+        else:
+            alphabet = 'ACGT'
+        mm = MarkovModel.train_bw(states=states,
+                                  alphabet=alphabet,
+                                  training_data=instances)
+        score = list()
+        for i in range(len(seq) - median_len + 1):
+            seq_segment = seq[i:i + median_len - 1]
+            result = MarkovModel.find_states(mm, seq_segment)
+            score.append(result[0][1])
+
+        eps = 1e-100
+        log_score = [math.log(x + eps) for x in score]
+
+        if zero_padding is True:
+            for i in range(len(seq) - len(score)):
+                log_score.append(0)
+        return log_score

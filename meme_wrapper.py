@@ -1,20 +1,21 @@
-
+"""This is a wrapper of the motif discovery tool MEME."""
 import os
-import re
 
 from subprocess import PIPE, Popen
 
 from Bio import motifs
 
-# from IPython.display import Image, display
+from utilities import MotifWrapper
 
-from utilities import MotifWrapper  # MuscleAlignWrapper, Weblogo
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class Meme(MotifWrapper):
-
     """
-    Wrapper for MEME 4.11.0
+    Wrapper for MEME 4.11.0.
+
     Usage: meme <sequence file> [options]
     To see MEME help, use MEME.display_meme_help()
     """
@@ -26,6 +27,7 @@ class Meme(MotifWrapper):
 
                  # Alphabet
                  alphabet="protein",  # ["dna", "rna", "protein"]
+                 gap_in_alphabet=True,
 
                  # Contributing Site Distribution
                  mod="zoops",
@@ -115,10 +117,11 @@ class Meme(MotifWrapper):
                  wl_resolution=96,
                  wl_fineprint='',
                  ):
-
+        """Initialize a MemeWrapper Object."""
         self.output_dir = output_dir
         self.text = text
         self.alphabet = alphabet
+        self.gap_in_alphabet = gap_in_alphabet
         self.mod = mod
         self.nmotifs = nmotifs
         self.evt = evt
@@ -193,10 +196,6 @@ class Meme(MotifWrapper):
         self.seq_names = list()
         # list of motives, each represented by an object
         self.motives_db = list()
-        # list-of-strings representation of motifs
-        self.motives_list = list()
-        # aligned list-of-strings of motifs, created by display_logo method
-        self.aligned_motives_list = list()
         # widths given in summary headers; length of each motif
         self.widths = list()
         # sites given in summary headers; num occurences
@@ -205,8 +204,14 @@ class Meme(MotifWrapper):
         self.e_values = list()
         # over-rides same attribute of MotifWrapper class
         self.pseudocounts = pseudocounts
+        # list-of-strings representation of motifs
+        self.motives_list = list()
+        # aligned list-of-strings of motifs, created by display_logo method
+        self.aligned_motives_list = list()
         # list of sequence logos created with WebLogo
         self.logos = list()
+        # threshold for scoring sequences
+        self.threshold = 1.0e-9
 
     def _make_param_string(self):
         # Creates a string of parameters
@@ -331,11 +336,7 @@ class Meme(MotifWrapper):
         io = Popen(cmd.split(" "), stdout=PIPE, stderr=PIPE)
         (stderr, stdout) = io.communicate()
 
-        if re.search('error', stdout):
-            raise NameError(stdout.split('\n')[0])
-        elif stderr:
-            raise NameError(stdout)
-        # return stdout
+        logger.info(stdout)
 
     def _get_stats(self, n_motifs):
         widths = list()
@@ -365,6 +366,7 @@ class Meme(MotifWrapper):
         return motives
 
     def fit(self, fasta_file=''):
+        """Save the output of MEME in specified folder and parse it."""
         if not fasta_file:
             raise NameError('Input fasta file not specified')
 
@@ -390,7 +392,6 @@ class Meme(MotifWrapper):
         # store length, number of occurences and e-value of each motif
         self._get_stats(self.nmotifs)
 
-        # TODO: remove self.motives_list & self. aligned_motives_list
         # get string representation of motives
         self.motives_list = list(self._get_motives_list())
 
@@ -447,27 +448,19 @@ class Meme(MotifWrapper):
                         match_list[seq_id][i].append(motif_location)
         return match_list
 
-    def fit_predict(self,
-                    fasta_file="",
-                    return_list=False,
-                    threshold=1.0e-9,
-                    append_score=False):
+    def fit_predict(self, fasta_file="", return_list=False):
+        """Build a model and find motif predictions in training data."""
         self.fit(fasta_file=fasta_file)
-        return self.predict(fasta_file=fasta_file,
-                            return_list=return_list,
-                            threshold=threshold,
-                            append_score=append_score)
+        return self.predict(input_seqs=fasta_file,
+                            return_list=return_list)
 
-    def fit_transform(self,
-                      fasta_file="",
-                      return_match=False,
-                      threshold=1.0e-9):
+    def fit_transform(self, fasta_file="", return_match=False):
+        """Build a model and find matches in input sequences."""
         self.fit(fasta_file=fasta_file)
-        return self.transform(fasta_file=fasta_file,
-                              return_match=return_match,
-                              threshold=threshold)
+        return self.transform(input_seqs=fasta_file, return_match=return_match)
 
     def display_meme_help(self):
+        """Display MEME's CLI help."""
         cmd = "meme --help"
         io = Popen(cmd.split(" "), stdout=PIPE, stderr=PIPE)
         (error, output) = io.communicate()
