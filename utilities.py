@@ -97,7 +97,6 @@ class MuscleAlignWrapper(object):
         for i in range(len(out[:-1]))[::2]:
             id = int(out[i].split(' ')[0].split('>')[1])
             motif_seqs[id] = out[i + 1]
-
         return zip(headers, motif_seqs)
 
     def transform(self, seqs=[]):
@@ -117,8 +116,8 @@ class Weblogo(object):
                  stacks_per_line=40,
                  sequence_type='dna',  # ['protein','dna','rna']
                  ignore_lower_case=False,
-                 # ['bits','nats','digits','kT','kJ/mol','kcal/mol','probability']
                  units='bits',
+                 # ['bits','nats','digits','kT','kJ/mol','kcal/mol','probability']
                  first_position=1,
                  logo_range=list(),
                  # composition = 'auto',
@@ -132,9 +131,9 @@ class Weblogo(object):
                  y_label='',
                  y_axis_tic_spacing=1.0,
                  show_ends=False,
-                 # ['auto','base','pairing','charge','chemistry','classic','monochrome']
                  color_scheme='classic',
-                 resolution=96,
+                 # ['auto','base','pairing','charge','chemistry','classic','monochrome']
+                 resolution=200,
                  fineprint='',
                  ):
         """Initialize an instance."""
@@ -181,7 +180,7 @@ class Weblogo(object):
         elif self.options.sequence_type is 'protein':
             alphabet = Alphabet('ACDEFGHIKLMNPQRSTVWY')
         else:
-            alphabet = Alphabet('AGCT')
+            alphabet = Alphabet('ACGT')
         motif_corebio = SeqList(alist=instances, alphabet=alphabet)
         data = wbl.LogoData().from_seqs(motif_corebio)
 
@@ -210,28 +209,8 @@ class MotifWrapper(object):
                  ma_maxiters=16,
                  ma_maxhours=None,
 
-                 # parameters for WebLogo
-                 wl_output_format='png',  # ['eps', 'png', 'png_print', 'jpeg']
-                 wl_stacks_per_line=40,
-                 wl_ignore_lower_case=False,
-                 wl_units='bits',
-                 # ['bits','nats','digits','kT','kJ/mol','kcal/mol','probability']
-                 wl_first_position=1,
-                 wl_logo_range=list(),
-                 wl_scale_stack_widths=True,
-                 wl_error_bars=True,
-                 wl_title='',
-                 wl_figure_label='',
-                 wl_show_x_axis=True,
-                 wl_x_label='',
-                 wl_show_y_axis=True,
-                 wl_y_label='',
-                 wl_y_axis_tic_spacing=1.0,
-                 wl_show_ends=False,
-                 wl_color_scheme='classic',
-                 # ['auto','base','pairing','charge','chemistry','classic','monochrome']
-                 wl_resolution=96,
-                 wl_fineprint='',
+                 muscle_obj=None,
+                 weblogo_obj=None
                  ):
         """Initialize an instance of MotifWrapper."""
         self.pseudocounts = pseudocounts
@@ -239,37 +218,12 @@ class MotifWrapper(object):
         self.gap_in_alphabet = gap_in_alphabet
         self.threshold = 1.0e-9
 
+        self.muscle_obj = muscle_obj
+        self.weblogo_obj = weblogo_obj
+
         self.ma_diags = ma_diags
         self.ma_maxiters = ma_maxiters
         self.ma_maxhours = ma_maxhours
-
-        self.wl_output_format = wl_output_format
-        self.wl_stacks_per_line = wl_stacks_per_line
-        self.wl_ignore_lower_case = wl_ignore_lower_case
-        self.wl_units = wl_units
-        self.wl_first_position = wl_first_position
-        self.wl_logo_range = wl_logo_range
-        self.wl_scale_stack_widths = wl_scale_stack_widths
-        self.wl_error_bars = wl_error_bars
-        self.wl_title = wl_title
-        self.wl_figure_label = wl_figure_label
-        self.wl_show_x_axis = wl_show_x_axis
-        self.wl_x_label = wl_x_label
-        self.wl_show_y_axis = wl_show_y_axis
-        self.wl_y_label = wl_y_label
-        self.wl_y_axis_tic_spacing = wl_y_axis_tic_spacing
-        self.wl_show_ends = wl_show_ends
-        self.wl_color_scheme = wl_color_scheme
-        self.wl_resolution = wl_resolution
-        self.wl_fineprint = wl_fineprint
-        if self.alphabet == "dna":
-            self.wl_sequence_type = "dna"
-        elif self.alphabet == "rna":
-            self.wl_sequence_type = "rna"
-        elif self.alphabet == "protein":
-            self.wl_sequence_type = "protein"
-        else:
-            self.wl_sequence_type = "auto"
 
         # list of PWMs corresponding to each motif
         self.pwms_list = list()
@@ -288,20 +242,14 @@ class MotifWrapper(object):
         motif_seq = list()
 
         if self.alphabet == 'protein':
-            if self.gap_in_alphabet is False:
-                alphabet = IUPAC.protein
-            else:
-                alphabet = Gapped(IUPAC.protein, "-")
+            alphabet = IUPAC.protein
         elif self.alphabet == 'rna':
-            if self.gap_in_alphabet is False:
-                alphabet = IUPAC.unambiguous_rna
-            else:
-                alphabet = Gapped(IUPAC.unambiguous_rna, "-")
+            alphabet = IUPAC.unambiguous_rna
         else:
-            if self.gap_in_alphabet is False:
-                alphabet = IUPAC.unambiguous_dna
-            else:
-                alphabet = Gapped(IUPAC.unambiguous_dna, "-")
+            alphabet = IUPAC.unambiguous_dna
+
+        if self.gap_in_alphabet is True:
+            alphabet = Gapped(alphabet, "-")
 
         for i in instances:
             # motif as Bio.Seq instance
@@ -448,10 +396,11 @@ class MotifWrapper(object):
         """Perform Muscle Alignment on motives."""
         motives = list(self.motives_list)
         aligned_motives = list()
-        ma = MuscleAlignWrapper(diags=self.ma_diags,
-                                maxiters=self.ma_maxiters,
-                                maxhours=self.ma_maxhours,
-                                )
+
+        if self.muscle_obj is None:
+            self.muscle_obj = MuscleAlignWrapper(alphabet=self.alphabet)
+        ma = self.muscle_obj
+
         for i in range(self.nmotifs):
             aligned_motives.append(ma.transform(seqs=motives[i]))
 
@@ -466,28 +415,11 @@ class MotifWrapper(object):
                 self.align_motives()
             motives = list(self.aligned_motives_list)
 
-        wl = Weblogo(output_format=self.wl_output_format,
-                     stacks_per_line=self.wl_stacks_per_line,
-                     sequence_type=self.wl_sequence_type,
-                     ignore_lower_case=self.wl_ignore_lower_case,
-                     units=self.wl_units,
-                     first_position=self.wl_first_position,
-                     logo_range=self.wl_logo_range,
-                     # composition =
-                     scale_stack_widths=self.wl_scale_stack_widths,
-                     error_bars=self.wl_error_bars,
-                     title=self.wl_title,
-                     figure_label=self.wl_figure_label,
-                     show_x_axis=self.wl_show_x_axis,
-                     x_label=self.wl_x_label,
-                     show_y_axis=self.wl_show_y_axis,
-                     y_label=self.wl_y_label,
-                     y_axis_tic_spacing=self.wl_y_axis_tic_spacing,
-                     show_ends=self.wl_show_ends,
-                     color_scheme=self.wl_color_scheme,
-                     resolution=self.wl_resolution,
-                     fineprint=self.wl_fineprint,
-                     )
+        if self.weblogo_obj is None:
+            self.weblogo_obj = Weblogo()
+        wl = self.weblogo_obj
+        wl.sequence_type = self.alphabet
+
         for i in range(self.nmotifs):
             logo = wl.create_logo(seqs=motives[i])
             logos_list.append(logo)
