@@ -1,4 +1,4 @@
-"""This is a wrapper of the motif discovery tool MEME."""
+"""A wrapper of the motif discovery tool MEME."""
 import os
 
 from subprocess import PIPE, Popen
