@@ -235,6 +235,8 @@ class MotifWrapper(object):
         self.nmotifs = 0
         # list of sequence logos created with WebLogo
         self.logos = list()
+        # list of Hidden Markov Model for each motif
+        self.hmms_list = list()
 
     def _get_pwm(self, input_motif=list()):
         # seperate headers from sequences
@@ -259,11 +261,22 @@ class MotifWrapper(object):
         return motif_obj.counts.normalize(self.pseudocounts)
 
     def fit(self, motives=list()):
-        """Compute PWM for each motif found by motif discovery tool."""
+        """Compute PWM & HMM for each found motif."""
         pwms = list()
         for i in range(len(motives)):
             pwms.append(self._get_pwm(input_motif=motives[i]))
         self.pwms_list = pwms[:]
+
+        if self.alphabet == 'protein':
+            alphabet = 'ACDEFGHIKLMNPQRSTVWY'
+        elif self.alphabet == 'rna':
+            alphabet = 'ACGU'
+        else:
+            alphabet = 'ACGT'
+        hmms = list()
+        for i in range(len(motives)):
+            hmms.append(self._create_mm(motif_num=i + 1, alphabet=alphabet))
+        self.hmms_list = hmms[:]
 
     def display(self, motif_num=None):
         """Display PWM of motives as dictionaries."""
@@ -439,30 +452,6 @@ class MotifWrapper(object):
             for i in range(self.nmotifs):
                 display(Image(self.logos[i]))
 
-    def adapt_motives(self, motives):
-        """Perform adaption for motives of different lengths.
-
-        If a single motif consists of instances of different lengths,
-        then adaption trims the motif by removing columns with more
-        gaps than characters.
-        """
-        modified_motives_list = list()
-        for m in motives:
-            heads = list()
-            seqs = list()
-            for j, k in m:
-                heads.append(j)
-                seqs.append(k)
-                new_seqs = self._get_new_seqs(seqs)
-            modified_motives_list.append(zip(heads, new_seqs))
-        return modified_motives_list
-
-    def _get_new_seqs(self, motif):
-        columns = self._seq_to_columns(motif)
-        new_columns = self._delete_gaps(columns)
-        new_seqs = self._columns_to_seqs(new_columns)
-        return new_seqs
-
     def _seq_to_columns(self, motif):
         motif_len = len(motif[0])
         cols = list()
@@ -510,8 +499,31 @@ class MotifWrapper(object):
             seqs[i] = ''.join(s)
         return seqs
 
-    def score_mm(self, motif_num=1, seq='', zero_padding=True):
-        """Return log_score_list of a sequence according to motif's HMM."""
+    def _get_new_seqs(self, motif):
+        columns = self._seq_to_columns(motif)
+        new_columns = self._delete_gaps(columns)
+        new_seqs = self._columns_to_seqs(new_columns)
+        return new_seqs
+
+    def adapt_motives(self, motives):
+        """Perform adaption for motives of different lengths.
+
+        If a single motif consists of instances of different lengths,
+        then adaption trims the motif by removing columns with more
+        gaps than characters.
+        """
+        modified_motives_list = list()
+        for m in motives:
+            heads = list()
+            seqs = list()
+            for j, k in m:
+                heads.append(j)
+                seqs.append(k)
+                new_seqs = self._get_new_seqs(seqs)
+            modified_motives_list.append(zip(heads, new_seqs))
+        return modified_motives_list
+
+    def _create_mm(self, motif_num, alphabet):
         try:
             # Only EDeN has original_motives_list
             input_motif = self.original_motives_list[motif_num - 1]
@@ -522,26 +534,26 @@ class MotifWrapper(object):
 
         lengths = [len(instances[i]) for i in range(len(instances))]
         median_len = int(math.ceil(np.median(lengths)))
-        seq_len = len(seq)
-
-        if seq_len < median_len:
-            raise ValueError('Sequence must be at least as long as the motif')
 
         # Hidden states for Markov Model
         states = [str(i + 1) for i in range(median_len)]
 
-        if self.alphabet == 'protein':
-            alphabet = 'ACDEFGHIKLMNPQRSTVWY'
-        elif self.alphabet == 'rna':
-            alphabet = 'ACGU'
-        else:
-            alphabet = 'ACGT'
         mm = MarkovModel.train_bw(states=states,
                                   alphabet=alphabet,
                                   training_data=instances)
+        return mm
+
+    def score_mm(self, motif_num=1, seq='', zero_padding=True):
+        """Return log_score_list of a sequence according to motif's HMM."""
+        mm = self.hmms_list[motif_num - 1]
+        hidden_states = len(mm.states)
+        seq_len = len(seq)
+
+        if seq_len < hidden_states:
+            raise ValueError('Sequence must be at least as long as the motif')
         score = list()
-        for i in range(len(seq) - median_len + 1):
-            seq_segment = seq[i:i + median_len - 1]
+        for i in range(seq_len - hidden_states + 1):
+            seq_segment = seq[i:i + hidden_states - 1]
             result = MarkovModel.find_states(mm, seq_segment)
             score.append(result[0][1])
 
