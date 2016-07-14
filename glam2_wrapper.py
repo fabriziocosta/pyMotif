@@ -30,7 +30,7 @@ class Glam2(MotifWrapper):
     """
 
     def __init__(self,
-                 alphabet="dna",    # ["dna", "rna", "protein"]
+                 alphabet="dna",    # ["dna", protein"]
                  output_dir="glam2_out",
                  number_alignment_runs=10,
                  number_iterations=10000,
@@ -98,8 +98,10 @@ class Glam2(MotifWrapper):
         return params
 
     def _command_exec(self, fasta_file, params):
-        if self.alphabet in ["rna", "dna"]:
+        if self.alphabet == "dna":
             alpha = ' n '
+        elif self.alphabet == "rna":
+            raise ValueError('Glam2 does not support RNA alphabet, use "dna" or "protein"')
         else:
             alpha = ' p '
 
