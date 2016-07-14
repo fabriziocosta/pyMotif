@@ -1,8 +1,7 @@
 """A wrapper of the motif discovery tool GLAM2."""
-import matplotlib.pyplot as plt
+from subprocess import PIPE, Popen
+
 import commands
-import PIL
-import os
 
 from utilities import MotifWrapper
 
@@ -12,7 +11,7 @@ logger.setLevel(logging.DEBUG)
 
 
 class Glam2(MotifWrapper):
-    """Python wrapper for 'glam2 (vers)' motif discovery tool.
+    """Python wrapper for glam2 v=4.11.0 motif discovery tool.
 
     Original usage: Usage: glam2 [options] alphabet my_seqs.fa
 
@@ -31,21 +30,21 @@ class Glam2(MotifWrapper):
     """
 
     def __init__(self,
-                 alphabet="n",
-                 fasta_file="",    # TODO: seperate this
+                 alphabet="dna",    # ["dna", "rna", "protein"]
                  output_dir="glam2_out",
                  number_alignment_runs=10,
                  number_iterations=10000,
-                 both_strands=0,
+                 both_strands=False,
                  min_sequences=2,
                  min_aligned_columns=2,
                  max_aligned_columns=50,
                  initial_aligned_columns=20,
-                 threshold=0
+
+                 muscle_obj=None,
+                 weblogo_obj=None
                  ):
         """Return a Glam2 object with specified attribute values."""
         self.alphabet = alphabet
-        self.fasta_file = fasta_file
         self.output_dir = output_dir    # -O
         self.number_alignment_runs = number_alignment_runs    # -r
         self.number_iterations = number_iterations     # -n
@@ -54,17 +53,71 @@ class Glam2(MotifWrapper):
         self.min_aligned_columns = min_aligned_columns    # -a
         self.max_aligned_columns = max_aligned_columns    # -b
         self.initial_aligned_columns = initial_aligned_columns    # -w
-        self.threshold = threshold
 
-        # self.scores = []
-        # self.score_line_num = []
-        # self.scores_threshold = []
+        self.muscle_obj = muscle_obj
+        self.weblogo_obj = weblogo_obj
 
-    def fit(self, fasta_file):
-        """Execute the command on terminal and returns the output."""
-        if fasta_file == "":
-            return "Input file not specified"
+        # no. of seqs in input file, to be set by fit()
+        self.n_seqs = 0
+        # names of sequences as given in input file to fit()
+        self.seq_names = list()
+        # list-of-strings representation of motifs
+        self.motives_list = list()
+        # aligned list-of-strings of motifs
+        self.aligned_motives_list = list()
+        # list of sequence logos created with WebLogo
+        self.logos = list()
+        # threshold for scoring sequences
+        self.threshold
 
+    def _make_param_string(self):
+        # Creates a string of parameters
+        params = " -O " + self.output_dir
+
+        if self.number_alignment_runs != 10:
+            params += " -r " + str(self.number_alignment_runs)
+
+        if self.number_iterations != 10000:
+            params += " -n " + str(self.number_iterations)
+
+        if self.both_strands is True:
+            params += " -2"
+
+        if self.min_sequences != 2:
+            params += " -z " + str(self.min_sequences)
+
+        if self.min_aligned_columns != 2:
+            params += " -a " + str(self.min_aligned_columns)
+
+        if self.max_aligned_columns != 50:
+            params += " -b" + str(self.max_aligned_columns)
+
+        if self.initial_aligned_columns != 20:
+            params += " -w " + str(self.initial_aligned_columns)
+
+        return params
+
+    def _command_exec(self, fasta_file, params):
+        if self.alphabet in ["rna", "dna"]:
+            alpha = ' n '
+        else:
+            alpha = ' p '
+
+        cmd = "glam2" + params + alpha + fasta_file
+        io = Popen(cmd.split(" "), stdout=PIPE, stderr=PIPE)
+        (stderr, stdout) = io.communicate()
+
+        logger.info(stdout)
+
+    def fit(self, fasta_file=''):
+        """Save the output of Glam2 and parse it."""
+        if not fasta_file:
+            return NameError('Input fasta file not specified')
+
+        cmd_params = self._make_param_string()
+        self._command_exec(fasta_file, cmd_params)
+
+        """
         command = "glam2" + " -O " + self.output_dir + " -r " + str(self.number_alignment_runs) + " -n " + str(self.number_iterations)
 
         if self.both_strands == 1:
@@ -78,99 +131,20 @@ class Glam2(MotifWrapper):
             return output
 
         return output
+        """
 
     def predict(self, return_list=False):
         """Output 1 integer per sequence indicating the motif id present in the sequence."""
-        # TODO: glam2 returns 1 motif per sequence, because actually these are alignments
-        # TODO: motifs in other portions are maybe repetitions
-        # TODO: check if dots between key positions are important
-
-        # filename = os.path.join('glam2_out', 'glam2.txt') ##<-- self.output_dir
-        filename = os.path.join(self.output_dir, 'glam2.txt')
-        with open(filename, 'r') as f:
-            lines = f.readlines()
-
-            n_seqs = int(lines[4][11:])    # Number of sequences in the text file
-            # max_sequence_length = int(lines[5][27:])
-
-            # Creating a list of alignment scores#
-            n = 7    # first line in txt file to start the search for
-            scores = []
-            score_line_num = []
-            while(len(scores) < 10):    # self.number_alignment_runs):    #loop for reading all scores
-                if lines[n].find("Score:") != -1:
-                    score_line_num.append(n)
-                    scores.append(float(lines[n].split(" ")[1]))
-                n += 1
-
-            # print scores
-
-            all_motifs = []
-            # motif_id = []
-            motif_list = []    # TODO:[[]] * n_seqs#to store the motif_id for each sequence
-            motif_count = [0] * n_seqs    # if return_list = False
-
-            k = 0
-            while(scores[k] >= self.threshold):    # self.threshold):    # Loop over portions
-
-                key_positions = []    # to store indices of key positions
-                for i, j in enumerate(lines[score_line_num[k] + 2]):    # Loop over key-positions line
-                    if j == '*':
-                        key_positions.append(i)
-
-                aligns_line = score_line_num[k] + 3
-                for i in range(aligns_line, aligns_line + n_seqs):    # Loop over alignment lines
-                    motif = []
-                    for j in range(len(key_positions)):
-                        motif.append(lines[i][key_positions[j]])
-
-                    if motif not in all_motifs:
-                        motif_count[i - aligns_line] += 1
-                        all_motifs.append(motif)
-
-                    motif_list.append(all_motifs.index(motif))
-
-                k += 1
-
-        # using strategy that each sequence gives one motif, reshape the motif list
-        # TODO: make a better motif_list
-        motif_list_reshape = []
-        for i in range(n_seqs):
-            x = []
-            for j in range(len(motif_list) / n_seqs):
-                x.append(motif_list[i + (j * n_seqs)])
-            motif_list_reshape.append(x)
-
-        if return_list is False:
-            return motif_count
-        return motif_list_reshape
-
-    def fit_predict(self, fasta_file, return_list=False):
-        """Run fit and predict."""
-        self.fit(fasta_file)
-        return self.predict(return_list=return_list)
+        pass
 
     def transform(self, return_match=False):
         """Transform."""
         pass
 
-    def logos(self, image_num=-1):
-        """Display the ten Sequence logos generated."""
-        # script_dir = os.path.dirname(self.output_dir)
-        images = []
-        for i in range(1, (self.number_alignment_runs + 1)):
-            image_path = "logo" + str(i) + ".png"
-            abs_file_path = os.path.join(self.output_dir, image_path)
-
-            images.append(PIL.Image.open(abs_file_path))
-
-        if image_num == -1:
-            for image in images:
-                plt.figure()
-                plt.imshow(image)
-        else:
-            plt.figure()
-            plt.imshow(images[image_num])
+    def fit_predict(self, fasta_file, return_list=False):
+        """Run fit and predict."""
+        self.fit(fasta_file)
+        return self.predict(return_list=return_list)
 
     def display_glam2_help(self):
         """Display GLAM2 command line help."""

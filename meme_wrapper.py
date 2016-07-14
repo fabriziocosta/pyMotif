@@ -26,7 +26,7 @@ class Meme(MotifWrapper):
                  text=False,
 
                  # Alphabet
-                 alphabet="protein",  # ["dna", "rna", "protein"]
+                 alphabet="dna",  # ["dna", "rna", "protein"]
                  gap_in_alphabet=True,
 
                  # Contributing Site Distribution
@@ -89,11 +89,6 @@ class Meme(MotifWrapper):
                  # parameters for (parent) MotifWrapper
                  pseudocounts=0,    # alphabet pseudocount
 
-                 # parameters for Muscle Alignment
-                 ma_diags=False,
-                 ma_maxiters=16,
-                 ma_maxhours=None,
-
                  muscle_obj=None,
                  weblogo_obj=None
                  ):
@@ -139,12 +134,6 @@ class Meme(MotifWrapper):
         self.muscle_obj = muscle_obj
         self.weblogo_obj = weblogo_obj
 
-        self.ma_diags = ma_diags
-        self.ma_maxiters = ma_maxiters
-        self.ma_maxhours = ma_maxhours
-
-        # parameters for command string
-        self.cmd_params = ""
         # no. of seqs in input file, to be set by fit()
         self.n_seqs = 0
         # to store the names of sequences as given in input file to fit()
@@ -161,7 +150,7 @@ class Meme(MotifWrapper):
         self.pseudocounts = pseudocounts
         # list-of-strings representation of motifs
         self.motives_list = list()
-        # aligned list-of-strings of motifs, created by display_logo method
+        # aligned list-of-strings of motifs
         self.aligned_motives_list = list()
         # list of sequence logos created with WebLogo
         self.logos = list()
@@ -283,11 +272,11 @@ class Meme(MotifWrapper):
         if self.v is True:
             params += " -V"
 
-        self.cmd_params = params
+        return params
 
-    def _command_exec(self, fasta_file=""):
+    def _command_exec(self, fasta_file="", params=""):
         # execute the meme command and return output
-        cmd = "meme " + fasta_file + " " + self.cmd_params
+        cmd = "meme " + fasta_file + " " + params
         io = Popen(cmd.split(" "), stdout=PIPE, stderr=PIPE)
         (stderr, stdout) = io.communicate()
 
@@ -321,12 +310,12 @@ class Meme(MotifWrapper):
         return motives
 
     def fit(self, fasta_file=''):
-        """Save the output of MEME in specified folder and parse it."""
+        """Save the output of MEME and parse it."""
         if not fasta_file:
             raise NameError('Input fasta file not specified')
 
-        self._make_param_string()
-        self._command_exec(fasta_file)
+        cmd_params = self._make_param_string()
+        self._command_exec(fasta_file, cmd_params)
 
         # parsing meme output file with Biopython
         filename = os.path.join(self.output_dir, 'meme.txt')
