@@ -399,21 +399,20 @@ class MotifWrapper(object):
     def _get_occurence_indexandscore_mm(self, seq, motif_num):
         mm_i = self.hmms_list[motif_num]
         seq_len = len(seq)
-        motif_len = len(mm.states)
+        motif_len = len(mm_i.states)
 
         scores = list()
         start_indexes = list()
 
-        """
         for i in range(seq_len - motif_len + 1):
             segment_score = 1
             for j in range(motif_len):
                 letter = seq[i + j]
-                segment_score *= pwm_i[letter][j]
-            if segment_score > self.threshold:
+                segment_score *= MarkovModel.find_states(mm_i, letter)[0][1]
+            if segment_score < self.threshold:
                 scores.append(segment_score)
                 start_indexes.append(i + 1)
-        """
+
         last_indexes = [i + motif_len for i in start_indexes]
         return zip(start_indexes, last_indexes, scores)
 
@@ -440,7 +439,13 @@ class MotifWrapper(object):
         if '.fa' in input_seqs:
             input_seqs = self._parse_fasta_file(fasta_file=input_seqs)
         headers, sequences = [list(x) for x in zip(*input_seqs)]
-        match_list = [[[] for j in range(len(self.pwms_list))]for i in range(len(headers))]
+
+        try:
+            n_motives = len(self.pwms_list)
+        except AttributeError:
+            n_motives = len(self.hmms_list)
+
+        match_list = [[[] for j in range(n_motives)]for i in range(len(headers))]
 
         if self.scoring_criteria == 'pwm':
             match_list = self._transform_pwm(sequences=sequences, match_list=match_list)
