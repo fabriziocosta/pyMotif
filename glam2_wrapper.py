@@ -31,6 +31,8 @@ class Glam2(MotifWrapper):
 
     def __init__(self,
                  alphabet="dna",    # ["dna", protein"]
+                 gap_in_alphabet=True,
+                 scoring_criteria="pwm",    # ["pwm", "hmm"]
                  output_dir="glam2_out",
                  number_alignment_runs=10,
                  number_iterations=10000,
@@ -45,6 +47,13 @@ class Glam2(MotifWrapper):
                  ):
         """Return a Glam2 object with specified attribute values."""
         self.alphabet = alphabet
+        self.gap_in_alphabet = gap_in_alphabet
+        self.scoring_criteria = scoring_criteria
+        # threshold for scoring sequences
+        if scoring_criteria == 'pwm':
+            self.threshold = 1.0e-9
+        else:
+            self.threshold = -200    # TODO: examine threshold for hmm
         self.output_dir = output_dir    # -O
         self.number_alignment_runs = number_alignment_runs    # -r
         self.number_iterations = number_iterations     # -n

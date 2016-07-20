@@ -10,6 +10,7 @@ class EdenWrapper(MotifWrapper):
     def __init__(self,
                  alphabet='dna',
                  gap_in_alphabet=True,
+                 scoring_criteria='pwm',    # ["pwm","hmm"]
                  min_subarray_size=7,
                  max_subarray_size=10,
                  min_motif_count=1,
@@ -61,6 +62,12 @@ class EdenWrapper(MotifWrapper):
                                 )
         self.alphabet = alphabet
         self.gap_in_alphabet = gap_in_alphabet
+        self.scoring_criteria = scoring_criteria
+        # threshold for scoring sequences
+        if scoring_criteria == 'pwm':
+            self.threshold = 1.0e-9
+        else:
+            self.threshold = -200    # TODO: examine threshold for hmm
 
         self.muscle_obj = muscle_obj
         self.weblogo_obj = weblogo_obj
@@ -78,8 +85,6 @@ class EdenWrapper(MotifWrapper):
         self.motives_list = list()
         # list of sequence logos created with WebLogo
         self.logos = list()
-        # threshold for scoring sequences
-        self.threshold = threshold
 
     def _get_motives_list(self, db):
         motives = list()

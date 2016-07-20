@@ -203,6 +203,7 @@ class MotifWrapper(object):
                  alphabet='dna',  # ['dna', 'rna', 'protein']
                  gap_in_alphabet=True,
                  pseudocounts=0,    # {'A':0, 'C': 0, 'G': 0, 'T': 0}
+                 scoring_criteria='pwm',    # ['pwm','hmm']
 
                  # parameters for Muscle Alignment
                  ma_diags=False,
@@ -216,7 +217,11 @@ class MotifWrapper(object):
         self.pseudocounts = pseudocounts
         self.alphabet = alphabet
         self.gap_in_alphabet = gap_in_alphabet
-        self.threshold = 1.0e-9
+        self.scoring_criteria = scoring_criteria
+        if scoring_criteria == 'pwm':
+            self.threshold = 1.0e-9
+        else:
+            self.threshold = -200    # TODO: examine threshold for hmm
 
         self.muscle_obj = muscle_obj
         self.weblogo_obj = weblogo_obj
@@ -261,22 +266,23 @@ class MotifWrapper(object):
         return motif_obj.counts.normalize(self.pseudocounts)
 
     def fit(self, motives=list()):
-        """Compute PWM & HMM for each found motif."""
-        pwms = list()
-        for i in range(len(motives)):
-            pwms.append(self._get_pwm(input_motif=motives[i]))
-        self.pwms_list = pwms[:]
-
-        if self.alphabet == 'protein':
-            alphabet = 'ACDEFGHIKLMNPQRSTVWY'
-        elif self.alphabet == 'rna':
-            alphabet = 'ACGU'
+        """Compute PWMs or HMMs for each found motif."""
+        if self.scoring_criteria == 'pwm':
+            pwms = list()
+            for i in range(len(motives)):
+                pwms.append(self._get_pwm(input_motif=motives[i]))
+            self.pwms_list = pwms[:]
         else:
-            alphabet = 'ACGT'
-        hmms = list()
-        for i in range(len(motives)):
-            hmms.append(self._create_mm(motif_num=i + 1, alphabet=alphabet))
-        self.hmms_list = hmms[:]
+            if self.alphabet == 'protein':
+                alphabet = 'ACDEFGHIKLMNPQRSTVWY'
+            elif self.alphabet == 'rna':
+                alphabet = 'ACGU'
+            else:
+                alphabet = 'ACGT'
+            hmms = list()
+            for i in range(len(motives)):
+                hmms.append(self._create_mm(motif_num=i + 1, alphabet=alphabet))
+            self.hmms_list = hmms[:]
 
     def display(self, motif_num=None):
         """Display PWM of motives as dictionaries."""
@@ -304,7 +310,7 @@ class MotifWrapper(object):
         else:
             return self._create_matrix(motif_num - 1)
 
-    def score_pwm(self, motif_num=1, seq='', zero_padding=True):
+    def _score_pwm(self, motif_num=1, seq='', zero_padding=True):
         """Return score_list of a sequence according to PWM of the motif."""
         pwm_i = self.pwms_list[motif_num - 1]
         seq_len = len(seq)
@@ -333,6 +339,26 @@ class MotifWrapper(object):
             seqs.append(sequence)
         return zip(headers, seqs)
 
+    def _predict_pwm(self, sequences, seq_lists):
+        for i, s in enumerate(sequences):
+            for j in range(len(self.pwms_list)):
+                score = self._score_pwm(motif_num=j + 1, seq=s)
+                for scr in score:
+                    if scr > self.threshold:
+                        if max(score) > self.threshold:
+                            seq_lists[i].append(j)
+        return seq_lists
+
+    def _predict_mm(self, sequences, seq_lists):
+        for i, s in enumerate(sequences):
+            for j in range(len(self.hmms_list)):
+                score = self._score_mm(motif_num=j + 1, seq=s)
+                for scr in score:
+                    if scr < self.threshold:
+                        if max(score) < self.threshold:
+                            seq_lists[i].append(j)
+        return seq_lists
+
     def predict(self, input_seqs='', return_list=True):
         """Score each motif found with input sequence according to PWM."""
         if '.fa' in input_seqs:
@@ -342,19 +368,16 @@ class MotifWrapper(object):
         # motives list for every sequence
         seq_lists = [[] for i in range(len(headers))]
 
-        for i, s in enumerate(sequences):
-            for j in range(len(self.pwms_list)):
-                score = self.score_pwm(motif_num=j + 1, seq=s)
-                for scr in score:
-                    if scr > self.threshold:
-                        if max(score) > self.threshold:
-                            seq_lists[i].append(j)
+        if self.scoring_criteria == 'pwm':
+            seq_lists = self._predict_pwm(sequences=sequences, seq_lists=seq_lists)
+        else:
+            seq_lists = self._predict_mm(sequences=sequences, seq_lists=seq_lists)
 
         if return_list is True:
             return seq_lists
         return [len(i) for i in seq_lists]
 
-    def _get_occurence_indexandscore(self, seq, motif_num):
+    def _get_occurence_indexandscore_pwm(self, seq, motif_num):
         pwm_i = self.pwms_list[motif_num]
         seq_len = len(seq)
         motif_len = len(pwm_i.itervalues().next())
@@ -373,6 +396,41 @@ class MotifWrapper(object):
         last_indexes = [i + motif_len for i in start_indexes]
         return zip(start_indexes, last_indexes, scores)
 
+    def _get_occurence_indexandscore_mm(self, seq, motif_num):
+        mm_i = self.hmms_list[motif_num]
+        seq_len = len(seq)
+        motif_len = len(mm.states)
+
+        scores = list()
+        start_indexes = list()
+
+        """
+        for i in range(seq_len - motif_len + 1):
+            segment_score = 1
+            for j in range(motif_len):
+                letter = seq[i + j]
+                segment_score *= pwm_i[letter][j]
+            if segment_score > self.threshold:
+                scores.append(segment_score)
+                start_indexes.append(i + 1)
+        """
+        last_indexes = [i + motif_len for i in start_indexes]
+        return zip(start_indexes, last_indexes, scores)
+
+    def _transform_pwm(self, sequences, match_list):
+        for i, s in enumerate(sequences):
+            for j in range(len(self.pwms_list)):
+                occs = self._get_occurence_indexandscore_pwm(seq=s, motif_num=j)
+                match_list[i][j] = occs
+        return match_list
+
+    def _transform_mm(self, sequences, match_list):
+        for i, s in enumerate(sequences):
+            for j in range(len(self.hmms_list)):
+                occs = self._get_occurence_indexandscore_mm(seq=s, motif_num=j)
+                match_list[i][j] = occs
+        return match_list
+
     def transform(self, input_seqs='', return_match=True):
         """Return summary of matches of each motif.
 
@@ -382,17 +440,12 @@ class MotifWrapper(object):
         if '.fa' in input_seqs:
             input_seqs = self._parse_fasta_file(fasta_file=input_seqs)
         headers, sequences = [list(x) for x in zip(*input_seqs)]
-        match_list = [
-                     [
-                         [] for j in range(len(self.pwms_list))
-                     ]
-            for i in range(len(headers))
-        ]
+        match_list = [[[] for j in range(len(self.pwms_list))]for i in range(len(headers))]
 
-        for i, s in enumerate(sequences):
-            for j in range(len(self.pwms_list)):
-                occs = self._get_occurence_indexandscore(seq=s, motif_num=j)
-                match_list[i][j] = occs
+        if self.scoring_criteria == 'pwm':
+            match_list = self._transform_pwm(sequences=sequences, match_list=match_list)
+        else:
+            match_list = self._transform_mm(sequences=sequences, match_list=match_list)
 
         if return_match is False:
             match_nums = [[] for i in range(len(headers))]
@@ -543,7 +596,7 @@ class MotifWrapper(object):
                                   training_data=instances)
         return mm
 
-    def score_mm(self, motif_num=1, seq='', zero_padding=True):
+    def _score_mm(self, motif_num=1, seq='', zero_padding=True):
         """Return log_score_list of a sequence according to motif's HMM."""
         mm = self.hmms_list[motif_num - 1]
         hidden_states = len(mm.states)
@@ -564,3 +617,9 @@ class MotifWrapper(object):
             for i in range(len(seq) - len(score)):
                 log_score.append(0)
         return log_score
+
+    def score(self, motif_num=1, seq='', zero_padding=True):
+        """Return score of the test seq according to the scoring criteria."""
+        if self.scoring_criteria == "pwm":
+            return self._score_pwm(motif_num=motif_num, seq=seq, zero_padding=zero_padding)
+        return self._score_mm(motif_num=motif_num, seq=seq, zero_padding=zero_padding)

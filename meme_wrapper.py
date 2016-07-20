@@ -28,6 +28,7 @@ class Meme(MotifWrapper):
                  # Alphabet
                  alphabet="dna",  # ["dna", "rna", "protein"]
                  gap_in_alphabet=True,
+                 scoring_criteria="pwm",    # ["pwm", "hmm"]
 
                  # Contributing Site Distribution
                  mod="zoops",
@@ -97,6 +98,11 @@ class Meme(MotifWrapper):
         self.text = text
         self.alphabet = alphabet
         self.gap_in_alphabet = gap_in_alphabet
+        self.scoring_criteria = scoring_criteria
+        if scoring_criteria == 'pwm':
+            self.threshold = 1.0e-9
+        else:
+            self.threshold = -200    # TODO: examine threshold for hmm
         self.mod = mod
         self.nmotifs = nmotifs
         self.evt = evt
@@ -154,8 +160,6 @@ class Meme(MotifWrapper):
         self.aligned_motives_list = list()
         # list of sequence logos created with WebLogo
         self.logos = list()
-        # threshold for scoring sequences
-        self.threshold = 1.0e-9
 
     def _make_param_string(self):
         # Creates a string of parameters
