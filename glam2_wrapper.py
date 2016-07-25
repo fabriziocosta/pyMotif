@@ -144,14 +144,6 @@ class Glam2(MotifWrapper):
         return output
         """
 
-    def predict(self, return_list=False):
-        """Output 1 integer per sequence indicating the motif id present in the sequence."""
-        pass
-
-    def transform(self, return_match=False):
-        """Transform."""
-        pass
-
     def fit_predict(self, fasta_file, return_list=False):
         """Run fit and predict."""
         self.fit(fasta_file)

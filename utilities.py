@@ -405,11 +405,11 @@ class MotifWrapper(object):
         start_indexes = list()
 
         for i in range(seq_len - motif_len + 1):
-            segment_score = 1
+            segment_score = 0
             for j in range(motif_len):
                 letter = seq[i + j]
-                segment_score *= MarkovModel.find_states(mm_i, letter)[0][1]
-            if segment_score < self.threshold:
+                segment_score += MarkovModel.find_states(mm_i, letter)[0][1]
+            if segment_score > self.threshold:
                 scores.append(segment_score)
                 start_indexes.append(i + 1)
 
@@ -455,7 +455,7 @@ class MotifWrapper(object):
         if return_match is False:
             match_nums = [[] for i in range(len(headers))]
             for i in range(len(headers)):
-                for j in range(len(self.pwms_list)):
+                for j in range(n_motives):
                     if match_list[i][j]:
                         match_nums[i].append(1)
                     else:
