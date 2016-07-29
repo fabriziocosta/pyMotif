@@ -97,7 +97,6 @@ class MuscleAlignWrapper(object):
         for i in range(len(out[:-1]))[::2]:
             id = int(out[i].split(' ')[0].split('>')[1])
             motif_seqs[id] = out[i + 1]
-
         return zip(headers, motif_seqs)
 
     def transform(self, seqs=[]):
@@ -117,8 +116,8 @@ class Weblogo(object):
                  stacks_per_line=40,
                  sequence_type='dna',  # ['protein','dna','rna']
                  ignore_lower_case=False,
-                 # ['bits','nats','digits','kT','kJ/mol','kcal/mol','probability']
                  units='bits',
+                 # ['bits','nats','digits','kT','kJ/mol','kcal/mol','probability']
                  first_position=1,
                  logo_range=list(),
                  # composition = 'auto',
@@ -132,9 +131,9 @@ class Weblogo(object):
                  y_label='',
                  y_axis_tic_spacing=1.0,
                  show_ends=False,
-                 # ['auto','base','pairing','charge','chemistry','classic','monochrome']
                  color_scheme='classic',
-                 resolution=96,
+                 # ['auto','base','pairing','charge','chemistry','classic','monochrome']
+                 resolution=200,
                  fineprint='',
                  ):
         """Initialize an instance."""
@@ -181,7 +180,7 @@ class Weblogo(object):
         elif self.options.sequence_type is 'protein':
             alphabet = Alphabet('ACDEFGHIKLMNPQRSTVWY')
         else:
-            alphabet = Alphabet('AGCT')
+            alphabet = Alphabet('ACGT')
         motif_corebio = SeqList(alist=instances, alphabet=alphabet)
         data = wbl.LogoData().from_seqs(motif_corebio)
 
@@ -203,73 +202,39 @@ class MotifWrapper(object):
     def __init__(self,
                  alphabet='dna',  # ['dna', 'rna', 'protein']
                  gap_in_alphabet=True,
-                 pseudocounts=0,    # {'A':0, 'C': 0, 'G': 0, 'T': 0}
+                 scoring_criteria='pwm',    # ['pwm','hmm']
+                 pseudocounts=0,    # integer or dictionary {'A':0, 'C': 0, 'G': 0, 'T': 0}
+                 threshold=None,    # scoring threshold
+                 k=1,    # top-k scores returned for hmm score
 
                  # parameters for Muscle Alignment
                  ma_diags=False,
                  ma_maxiters=16,
                  ma_maxhours=None,
 
-                 # parameters for WebLogo
-                 wl_output_format='png',  # ['eps', 'png', 'png_print', 'jpeg']
-                 wl_stacks_per_line=40,
-                 wl_ignore_lower_case=False,
-                 wl_units='bits',
-                 # ['bits','nats','digits','kT','kJ/mol','kcal/mol','probability']
-                 wl_first_position=1,
-                 wl_logo_range=list(),
-                 wl_scale_stack_widths=True,
-                 wl_error_bars=True,
-                 wl_title='',
-                 wl_figure_label='',
-                 wl_show_x_axis=True,
-                 wl_x_label='',
-                 wl_show_y_axis=True,
-                 wl_y_label='',
-                 wl_y_axis_tic_spacing=1.0,
-                 wl_show_ends=False,
-                 wl_color_scheme='classic',
-                 # ['auto','base','pairing','charge','chemistry','classic','monochrome']
-                 wl_resolution=96,
-                 wl_fineprint='',
+                 muscle_obj=None,
+                 weblogo_obj=None
                  ):
         """Initialize an instance of MotifWrapper."""
         self.pseudocounts = pseudocounts
         self.alphabet = alphabet
         self.gap_in_alphabet = gap_in_alphabet
-        self.threshold = 1.0e-9
+        self.scoring_criteria = scoring_criteria
+        if threshold is None:
+            if scoring_criteria == 'pwm':
+                self.threshold = 1.0e-9
+            else:
+                self.threshold = 0.8
+        else:
+            self.threshold = threshold
+        self.k = k
+
+        self.muscle_obj = muscle_obj
+        self.weblogo_obj = weblogo_obj
 
         self.ma_diags = ma_diags
         self.ma_maxiters = ma_maxiters
         self.ma_maxhours = ma_maxhours
-
-        self.wl_output_format = wl_output_format
-        self.wl_stacks_per_line = wl_stacks_per_line
-        self.wl_ignore_lower_case = wl_ignore_lower_case
-        self.wl_units = wl_units
-        self.wl_first_position = wl_first_position
-        self.wl_logo_range = wl_logo_range
-        self.wl_scale_stack_widths = wl_scale_stack_widths
-        self.wl_error_bars = wl_error_bars
-        self.wl_title = wl_title
-        self.wl_figure_label = wl_figure_label
-        self.wl_show_x_axis = wl_show_x_axis
-        self.wl_x_label = wl_x_label
-        self.wl_show_y_axis = wl_show_y_axis
-        self.wl_y_label = wl_y_label
-        self.wl_y_axis_tic_spacing = wl_y_axis_tic_spacing
-        self.wl_show_ends = wl_show_ends
-        self.wl_color_scheme = wl_color_scheme
-        self.wl_resolution = wl_resolution
-        self.wl_fineprint = wl_fineprint
-        if self.alphabet == "dna":
-            self.wl_sequence_type = "dna"
-        elif self.alphabet == "rna":
-            self.wl_sequence_type = "rna"
-        elif self.alphabet == "protein":
-            self.wl_sequence_type = "protein"
-        else:
-            self.wl_sequence_type = "auto"
 
         # list of PWMs corresponding to each motif
         self.pwms_list = list()
@@ -281,6 +246,8 @@ class MotifWrapper(object):
         self.nmotifs = 0
         # list of sequence logos created with WebLogo
         self.logos = list()
+        # list of Hidden Markov Model for each motif
+        self.hmms_list = list()
 
     def _get_pwm(self, input_motif=list()):
         # seperate headers from sequences
@@ -288,20 +255,14 @@ class MotifWrapper(object):
         motif_seq = list()
 
         if self.alphabet == 'protein':
-            if self.gap_in_alphabet is False:
-                alphabet = IUPAC.protein
-            else:
-                alphabet = Gapped(IUPAC.protein, "-")
+            alphabet = IUPAC.protein
         elif self.alphabet == 'rna':
-            if self.gap_in_alphabet is False:
-                alphabet = IUPAC.unambiguous_rna
-            else:
-                alphabet = Gapped(IUPAC.unambiguous_rna, "-")
+            alphabet = IUPAC.unambiguous_rna
         else:
-            if self.gap_in_alphabet is False:
-                alphabet = IUPAC.unambiguous_dna
-            else:
-                alphabet = Gapped(IUPAC.unambiguous_dna, "-")
+            alphabet = IUPAC.unambiguous_dna
+
+        if self.gap_in_alphabet is True:
+            alphabet = Gapped(alphabet, "-")
 
         for i in instances:
             # motif as Bio.Seq instance
@@ -311,11 +272,23 @@ class MotifWrapper(object):
         return motif_obj.counts.normalize(self.pseudocounts)
 
     def fit(self, motives=list()):
-        """Compute PWM for each motif found by motif discovery tool."""
-        pwms = list()
-        for i in range(len(motives)):
-            pwms.append(self._get_pwm(input_motif=motives[i]))
-        self.pwms_list = pwms[:]
+        """Compute PWMs or HMMs for each found motif."""
+        if self.scoring_criteria == 'pwm':
+            pwms = list()
+            for i in range(len(motives)):
+                pwms.append(self._get_pwm(input_motif=motives[i]))
+            self.pwms_list = pwms[:]
+        else:
+            if self.alphabet == 'protein':
+                alphabet = 'ACDEFGHIKLMNPQRSTVWY'
+            elif self.alphabet == 'rna':
+                alphabet = 'ACGU'
+            else:
+                alphabet = 'ACGT'
+            hmms = list()
+            for i in range(len(motives)):
+                hmms.append(self._create_mm(motif_num=i + 1, alphabet=alphabet))
+            self.hmms_list = hmms[:]
 
     def display(self, motif_num=None):
         """Display PWM of motives as dictionaries."""
@@ -343,8 +316,7 @@ class MotifWrapper(object):
         else:
             return self._create_matrix(motif_num - 1)
 
-    def score_pwm(self, motif_num=1, seq='', zero_padding=True):
-        """Return score_list of a sequence according to PWM of the motif."""
+    def _eval_pwm(self, motif_num=1, seq=''):
         pwm_i = self.pwms_list[motif_num - 1]
         seq_len = len(seq)
         motif_len = len(pwm_i.itervalues().next())
@@ -357,9 +329,9 @@ class MotifWrapper(object):
                 letter = seq[i + j]
                 segment_score *= pwm_i[letter][j]
             scores.append(segment_score)
-        if zero_padding is True:
-            for i in range(seq_len - len(scores)):
-                scores.append(0)
+        # zero padding
+        for i in range(seq_len - len(scores)):
+            scores.append(0)
         return scores
 
     def _parse_fasta_file(self, fasta_file):
@@ -372,6 +344,47 @@ class MotifWrapper(object):
             seqs.append(sequence)
         return zip(headers, seqs)
 
+    def _predict_pwm(self, sequences, seq_lists):
+        for i, s in enumerate(sequences):
+            for j in range(len(self.pwms_list)):
+                score = self._eval_pwm(motif_num=j + 1, seq=s)
+                for scr in score:
+                    if scr > self.threshold:
+                        if max(score) > self.threshold:
+                            seq_lists[i].append(j)
+        return seq_lists
+
+    def _eval_mm(self, motif_num=1, seq=''):
+        """Return log_score_list of a sequence according to motif's HMM."""
+        mm = self.hmms_list[motif_num - 1]
+        hidden_states = len(mm.states)
+        seq_len = len(seq)
+
+        if seq_len < hidden_states:
+            raise ValueError('Sequence must be at least as long as the motif')
+        score = list()
+        for i in range(seq_len - hidden_states + 1):
+            seq_segment = seq[i:i + hidden_states - 1]
+            result = MarkovModel.find_states(mm, seq_segment)
+            score.append(result[0][1])
+
+        eps = 1e-100
+        log_score = [math.log(x + eps) for x in score]
+        # zero padding
+        for i in range(len(seq) - len(score)):
+            log_score.append(0)
+        return log_score
+
+    def _predict_mm(self, sequences, seq_lists):
+        for i, s in enumerate(sequences):
+            for j in range(len(self.hmms_list)):
+                score = self._eval_mm(motif_num=j + 1, seq=s)
+                for scr in score:
+                    if scr < self.threshold:
+                        if max(score) < self.threshold:
+                            seq_lists[i].append(j)
+        return seq_lists
+
     def predict(self, input_seqs='', return_list=True):
         """Score each motif found with input sequence according to PWM."""
         if '.fa' in input_seqs:
@@ -381,19 +394,16 @@ class MotifWrapper(object):
         # motives list for every sequence
         seq_lists = [[] for i in range(len(headers))]
 
-        for i, s in enumerate(sequences):
-            for j in range(len(self.pwms_list)):
-                score = self.score_pwm(motif_num=j + 1, seq=s)
-                for scr in score:
-                    if scr > self.threshold:
-                        if max(score) > self.threshold:
-                            seq_lists[i].append(j)
+        if self.scoring_criteria == 'pwm':
+            seq_lists = self._predict_pwm(sequences=sequences, seq_lists=seq_lists)
+        else:
+            seq_lists = self._predict_mm(sequences=sequences, seq_lists=seq_lists)
 
         if return_list is True:
             return seq_lists
         return [len(i) for i in seq_lists]
 
-    def _get_occurence_indexandscore(self, seq, motif_num):
+    def _get_occurence_indexandscore_pwm(self, seq, motif_num):
         pwm_i = self.pwms_list[motif_num]
         seq_len = len(seq)
         motif_len = len(pwm_i.itervalues().next())
@@ -412,6 +422,47 @@ class MotifWrapper(object):
         last_indexes = [i + motif_len for i in start_indexes]
         return zip(start_indexes, last_indexes, scores)
 
+    def _get_key(self, item):
+        return item[2]
+
+    def _get_occurence_indexandscore_mm(self, seq, motif_num):
+        mm_i = self.hmms_list[motif_num]
+        seq_len = len(seq)
+        motif_len = len(mm_i.states)
+
+        scores = list()
+        start_indexes = list()
+
+        for i in range(seq_len - motif_len + 1):
+            segment_score = 0
+            for j in range(motif_len):
+                letter = seq[i + j]
+                segment_score += MarkovModel.find_states(mm_i, letter)[0][1]
+            if segment_score > self.threshold:
+                scores.append(segment_score)
+                start_indexes.append(i + 1)
+
+        last_indexes = [i + motif_len for i in start_indexes]
+        data = zip(start_indexes, last_indexes, scores)
+        sorted_data = sorted(data, key=self._get_key, reverse=True)
+
+        top_result = sorted_data[:self.k]
+        return top_result
+
+    def _transform_pwm(self, sequences, match_list):
+        for i, s in enumerate(sequences):
+            for j in range(len(self.pwms_list)):
+                occs = self._get_occurence_indexandscore_pwm(seq=s, motif_num=j)
+                match_list[i][j] = occs
+        return match_list
+
+    def _transform_mm(self, sequences, match_list):
+        for i, s in enumerate(sequences):
+            for j in range(len(self.hmms_list)):
+                occs = self._get_occurence_indexandscore_mm(seq=s, motif_num=j)
+                match_list[i][j] = occs
+        return match_list
+
     def transform(self, input_seqs='', return_match=True):
         """Return summary of matches of each motif.
 
@@ -421,22 +472,23 @@ class MotifWrapper(object):
         if '.fa' in input_seqs:
             input_seqs = self._parse_fasta_file(fasta_file=input_seqs)
         headers, sequences = [list(x) for x in zip(*input_seqs)]
-        match_list = [
-                     [
-                         [] for j in range(len(self.pwms_list))
-                     ]
-            for i in range(len(headers))
-        ]
 
-        for i, s in enumerate(sequences):
-            for j in range(len(self.pwms_list)):
-                occs = self._get_occurence_indexandscore(seq=s, motif_num=j)
-                match_list[i][j] = occs
+        try:
+            n_motives = len(self.pwms_list)
+        except AttributeError:
+            n_motives = len(self.hmms_list)
+
+        match_list = [[[] for j in range(n_motives)]for i in range(len(headers))]
+
+        if self.scoring_criteria == 'pwm':
+            match_list = self._transform_pwm(sequences=sequences, match_list=match_list)
+        else:
+            match_list = self._transform_mm(sequences=sequences, match_list=match_list)
 
         if return_match is False:
             match_nums = [[] for i in range(len(headers))]
             for i in range(len(headers)):
-                for j in range(len(self.pwms_list)):
+                for j in range(n_motives):
                     if match_list[i][j]:
                         match_nums[i].append(1)
                     else:
@@ -448,10 +500,11 @@ class MotifWrapper(object):
         """Perform Muscle Alignment on motives."""
         motives = list(self.motives_list)
         aligned_motives = list()
-        ma = MuscleAlignWrapper(diags=self.ma_diags,
-                                maxiters=self.ma_maxiters,
-                                maxhours=self.ma_maxhours,
-                                )
+
+        if self.muscle_obj is None:
+            self.muscle_obj = MuscleAlignWrapper(alphabet=self.alphabet)
+        ma = self.muscle_obj
+
         for i in range(self.nmotifs):
             aligned_motives.append(ma.transform(seqs=motives[i]))
 
@@ -466,28 +519,11 @@ class MotifWrapper(object):
                 self.align_motives()
             motives = list(self.aligned_motives_list)
 
-        wl = Weblogo(output_format=self.wl_output_format,
-                     stacks_per_line=self.wl_stacks_per_line,
-                     sequence_type=self.wl_sequence_type,
-                     ignore_lower_case=self.wl_ignore_lower_case,
-                     units=self.wl_units,
-                     first_position=self.wl_first_position,
-                     logo_range=self.wl_logo_range,
-                     # composition =
-                     scale_stack_widths=self.wl_scale_stack_widths,
-                     error_bars=self.wl_error_bars,
-                     title=self.wl_title,
-                     figure_label=self.wl_figure_label,
-                     show_x_axis=self.wl_show_x_axis,
-                     x_label=self.wl_x_label,
-                     show_y_axis=self.wl_show_y_axis,
-                     y_label=self.wl_y_label,
-                     y_axis_tic_spacing=self.wl_y_axis_tic_spacing,
-                     show_ends=self.wl_show_ends,
-                     color_scheme=self.wl_color_scheme,
-                     resolution=self.wl_resolution,
-                     fineprint=self.wl_fineprint,
-                     )
+        if self.weblogo_obj is None:
+            self.weblogo_obj = Weblogo()
+        wl = self.weblogo_obj
+        wl.sequence_type = self.alphabet
+
         for i in range(self.nmotifs):
             logo = wl.create_logo(seqs=motives[i])
             logos_list.append(logo)
@@ -506,30 +542,6 @@ class MotifWrapper(object):
         else:
             for i in range(self.nmotifs):
                 display(Image(self.logos[i]))
-
-    def adapt_motives(self, motives):
-        """Perform adaption for motives of different lengths.
-
-        If a single motif consists of instances of different lengths,
-        then adaption trims the motif by removing columns with more
-        gaps than characters.
-        """
-        modified_motives_list = list()
-        for m in motives:
-            heads = list()
-            seqs = list()
-            for j, k in m:
-                heads.append(j)
-                seqs.append(k)
-                new_seqs = self._get_new_seqs(seqs)
-            modified_motives_list.append(zip(heads, new_seqs))
-        return modified_motives_list
-
-    def _get_new_seqs(self, motif):
-        columns = self._seq_to_columns(motif)
-        new_columns = self._delete_gaps(columns)
-        new_seqs = self._columns_to_seqs(new_columns)
-        return new_seqs
 
     def _seq_to_columns(self, motif):
         motif_len = len(motif[0])
@@ -578,8 +590,31 @@ class MotifWrapper(object):
             seqs[i] = ''.join(s)
         return seqs
 
-    def score_mm(self, motif_num=1, seq='', zero_padding=True):
-        """Return log_score_list of a sequence according to motif's HMM."""
+    def _get_new_seqs(self, motif):
+        columns = self._seq_to_columns(motif)
+        new_columns = self._delete_gaps(columns)
+        new_seqs = self._columns_to_seqs(new_columns)
+        return new_seqs
+
+    def adapt_motives(self, motives):
+        """Perform adaption for motives of different lengths.
+
+        If a single motif consists of instances of different lengths,
+        then adaption trims the motif by removing columns with more
+        gaps than characters.
+        """
+        modified_motives_list = list()
+        for m in motives:
+            heads = list()
+            seqs = list()
+            for j, k in m:
+                heads.append(j)
+                seqs.append(k)
+                new_seqs = self._get_new_seqs(seqs)
+            modified_motives_list.append(zip(heads, new_seqs))
+        return modified_motives_list
+
+    def _create_mm(self, motif_num, alphabet):
         try:
             # Only EDeN has original_motives_list
             input_motif = self.original_motives_list[motif_num - 1]
@@ -590,33 +625,38 @@ class MotifWrapper(object):
 
         lengths = [len(instances[i]) for i in range(len(instances))]
         median_len = int(math.ceil(np.median(lengths)))
-        seq_len = len(seq)
-
-        if seq_len < median_len:
-            raise ValueError('Sequence must be at least as long as the motif')
 
         # Hidden states for Markov Model
         states = [str(i + 1) for i in range(median_len)]
 
-        if self.alphabet == 'protein':
-            alphabet = 'ACDEFGHIKLMNPQRSTVWY'
-        elif self.alphabet == 'rna':
-            alphabet = 'ACGU'
-        else:
-            alphabet = 'ACGT'
         mm = MarkovModel.train_bw(states=states,
                                   alphabet=alphabet,
                                   training_data=instances)
-        score = list()
-        for i in range(len(seq) - median_len + 1):
-            seq_segment = seq[i:i + median_len - 1]
-            result = MarkovModel.find_states(mm, seq_segment)
-            score.append(result[0][1])
+        return mm
 
-        eps = 1e-100
-        log_score = [math.log(x + eps) for x in score]
+    def _score_mm(self, motif_num=1, seq=''):
+        return self._eval_mm(motif_num=motif_num, seq=seq)
 
-        if zero_padding is True:
-            for i in range(len(seq) - len(score)):
-                log_score.append(0)
-        return log_score
+    def _score_pwm(self, motif_num=1, seq=''):
+        pwm_i = self.pwms_list[motif_num - 1]
+        seq_len = len(seq)
+        motif_len = len(pwm_i.itervalues().next())
+        if seq_len < motif_len:
+            raise ValueError('Sequence must be at least as long as the motif')
+        score_mat = np.zeros((seq_len - motif_len + 1, seq_len))
+        for i in range(seq_len - motif_len + 1):
+            segment_score = 1
+            for j in range(motif_len):
+                letter = seq[i + j]
+                segment_score *= pwm_i[letter][j]
+            for j in range(i, i + motif_len):
+                score_mat[i][j] = segment_score
+        # voting
+        max_score = [max(score_mat[:, i]) for i in range(seq_len)]
+        return max_score
+
+    def score(self, motif_num=1, seq=''):
+        """Return score of the test seq according to the scoring criteria."""
+        if self.scoring_criteria == "pwm":
+            return self._score_pwm(motif_num=motif_num, seq=seq)
+        return self._score_mm(motif_num=motif_num, seq=seq)

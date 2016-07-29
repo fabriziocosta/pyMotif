@@ -10,6 +10,11 @@ class EdenWrapper(MotifWrapper):
     def __init__(self,
                  alphabet='dna',
                  gap_in_alphabet=True,
+                 scoring_criteria='pwm',    # ["pwm","hmm"]
+                 pseudocounts=0,    # integer or dictionary {'A':0, 'C': 0, 'G': 0, 'T': 0}
+                 threshold=None,
+                 k=1,    # top-k scores returned for hmm score
+
                  min_subarray_size=7,
                  max_subarray_size=10,
                  min_motif_count=1,
@@ -19,8 +24,8 @@ class EdenWrapper(MotifWrapper):
                  shuffle_order=2,
                  n_iter_search=1,
                  complexity=4,
-                 # radius=None,    # TODO: check radius
-                 # distance=None,    # TODO: check distance
+                 # radius=None,
+                 # distance=None,
                  nbits=20,
                  clustering_algorithm=None,
                  n_jobs=4,
@@ -30,36 +35,9 @@ class EdenWrapper(MotifWrapper):
                  pre_processor_n_blocks=8,
                  pre_processor_block_size=None,
                  random_state=1,
-                 pseudocounts=0,
-                 threshold=1.0e-9,
 
-                 # parameters for Muscle Alignment
-                 ma_diags=False,
-                 ma_maxiters=16,
-                 ma_maxhours=None,
-
-                 # parameters for WebLogo
-                 wl_output_format='png',  # ['eps', 'png', 'png_print', 'jpeg']
-                 wl_stacks_per_line=40,
-                 wl_ignore_lower_case=False,
-                 wl_units='bits',
-                 # ['bits','nats','digits','kT','kJ/mol','kcal/mol','probability']
-                 wl_first_position=1,
-                 wl_logo_range=list(),
-                 wl_scale_stack_widths=True,
-                 wl_error_bars=True,
-                 wl_title='',
-                 wl_figure_label='',
-                 wl_show_x_axis=True,
-                 wl_x_label='',
-                 wl_show_y_axis=True,
-                 wl_y_label='',
-                 wl_y_axis_tic_spacing=1.0,
-                 wl_show_ends=False,
-                 wl_color_scheme='classic',
-                 # ['auto','base','pairing','charge','chemistry','classic','monochrome']
-                 wl_resolution=96,
-                 wl_fineprint='',
+                 muscle_obj=None,
+                 weblogo_obj=None
                  ):
         """Initialize a EdenWrapper object."""
         self.sm = SequenceMotif(min_subarray_size=min_subarray_size,
@@ -80,44 +58,23 @@ class EdenWrapper(MotifWrapper):
                                 block_size=block_size,
                                 pre_processor_n_jobs=pre_processor_n_jobs,
                                 pre_processor_n_blocks=pre_processor_n_blocks,
-                                # TODO: check pre_processor_block_size
-                                # pre_processor_block_size=pre_processor_block_size,
+                                pre_processor_block_size=pre_processor_block_size,
                                 random_state=random_state,
                                 )
         self.alphabet = alphabet
         self.gap_in_alphabet = gap_in_alphabet
-
-        self.ma_diags = ma_diags
-        self.ma_maxiters = ma_maxiters
-        self.ma_maxhours = ma_maxhours
-
-        self.wl_output_format = wl_output_format
-        self.wl_stacks_per_line = wl_stacks_per_line
-        self.wl_ignore_lower_case = wl_ignore_lower_case
-        self.wl_units = wl_units
-        self.wl_first_position = wl_first_position
-        self.wl_logo_range = wl_logo_range
-        self.wl_scale_stack_widths = wl_scale_stack_widths
-        self.wl_error_bars = wl_error_bars
-        self.wl_title = wl_title
-        self.wl_figure_label = wl_figure_label
-        self.wl_show_x_axis = wl_show_x_axis
-        self.wl_x_label = wl_x_label
-        self.wl_show_y_axis = wl_show_y_axis
-        self.wl_y_label = wl_y_label
-        self.wl_y_axis_tic_spacing = wl_y_axis_tic_spacing
-        self.wl_show_ends = wl_show_ends
-        self.wl_color_scheme = wl_color_scheme
-        self.wl_resolution = wl_resolution
-        self.wl_fineprint = wl_fineprint
-        if self.alphabet == "dna":
-            self.wl_sequence_type = "dna"
-        elif self.alphabet == "rna":
-            self.wl_sequence_type = "rna"
-        elif self.alphabet == "protein":
-            self.wl_sequence_type = "protein"
+        self.scoring_criteria = scoring_criteria
+        if threshold is None:
+            if scoring_criteria == 'pwm':
+                self.threshold = 1.0e-9
+            else:
+                self.threshold = 0.8
         else:
-            self.wl_sequence_type = "auto"
+            self.threshold = threshold
+        self.k = k
+
+        self.muscle_obj = muscle_obj
+        self.weblogo_obj = weblogo_obj
 
         # Number of motives found
         self.nmotifs = 0
@@ -132,8 +89,6 @@ class EdenWrapper(MotifWrapper):
         self.motives_list = list()
         # list of sequence logos created with WebLogo
         self.logos = list()
-        # threshold for scoring sequences
-        self.threshold = threshold
 
     def _get_motives_list(self, db):
         motives = list()

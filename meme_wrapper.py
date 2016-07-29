@@ -1,4 +1,4 @@
-"""This is a wrapper of the motif discovery tool MEME."""
+"""A wrapper of the motif discovery tool MEME."""
 import os
 
 from subprocess import PIPE, Popen
@@ -26,8 +26,12 @@ class Meme(MotifWrapper):
                  text=False,
 
                  # Alphabet
-                 alphabet="protein",  # ["dna", "rna", "protein"]
+                 alphabet="dna",  # ["dna", "rna", "protein"]
                  gap_in_alphabet=True,
+                 scoring_criteria="pwm",    # ["pwm", "hmm"]
+                 threshold=None,
+                 k=1,
+
 
                  # Contributing Site Distribution
                  mod="zoops",
@@ -89,39 +93,24 @@ class Meme(MotifWrapper):
                  # parameters for (parent) MotifWrapper
                  pseudocounts=0,    # alphabet pseudocount
 
-                 # parameters for Muscle Alignment
-                 ma_diags=False,
-                 ma_maxiters=16,
-                 ma_maxhours=None,
-
-                 # parameters for WebLogo
-                 wl_output_format='png',  # ['eps', 'png', 'png_print', 'jpeg']
-                 wl_stacks_per_line=40,
-                 wl_ignore_lower_case=False,
-                 wl_units='bits',
-                 # ['bits','nats','digits','kT','kJ/mol','kcal/mol','probability']
-                 wl_first_position=1,
-                 wl_logo_range=list(),
-                 wl_scale_stack_widths=True,
-                 wl_error_bars=True,
-                 wl_title='',
-                 wl_figure_label='',
-                 wl_show_x_axis=True,
-                 wl_x_label='',
-                 wl_show_y_axis=True,
-                 wl_y_label='',
-                 wl_y_axis_tic_spacing=1.0,
-                 wl_show_ends=False,
-                 wl_color_scheme='classic',
-                 # ['auto','base','pairing','charge','chemistry','classic','monochrome']
-                 wl_resolution=96,
-                 wl_fineprint='',
+                 muscle_obj=None,
+                 weblogo_obj=None
                  ):
         """Initialize a MemeWrapper Object."""
         self.output_dir = output_dir
         self.text = text
         self.alphabet = alphabet
         self.gap_in_alphabet = gap_in_alphabet
+        self.scoring_criteria = scoring_criteria
+        if threshold is None:
+            if scoring_criteria == 'pwm':
+                self.threshold = 1.0e-9
+            else:
+                self.threshold = 0.8
+        else:
+            self.threshold = threshold
+        self.k = k
+
         self.mod = mod
         self.nmotifs = nmotifs
         self.evt = evt
@@ -156,40 +145,9 @@ class Meme(MotifWrapper):
         self.maxsize = maxsize
         self.v = v
 
-        self.ma_diags = ma_diags
-        self.ma_maxiters = ma_maxiters
-        self.ma_maxhours = ma_maxhours
+        self.muscle_obj = muscle_obj
+        self.weblogo_obj = weblogo_obj
 
-        self.wl_output_format = wl_output_format
-        self.wl_stacks_per_line = wl_stacks_per_line
-        self.wl_ignore_lower_case = wl_ignore_lower_case
-        self.wl_units = wl_units
-        self.wl_first_position = wl_first_position
-        self.wl_logo_range = wl_logo_range
-        self.wl_scale_stack_widths = wl_scale_stack_widths
-        self.wl_error_bars = wl_error_bars
-        self.wl_title = wl_title
-        self.wl_figure_label = wl_figure_label
-        self.wl_show_x_axis = wl_show_x_axis
-        self.wl_x_label = wl_x_label
-        self.wl_show_y_axis = wl_show_y_axis
-        self.wl_y_label = wl_y_label
-        self.wl_y_axis_tic_spacing = wl_y_axis_tic_spacing
-        self.wl_show_ends = wl_show_ends
-        self.wl_color_scheme = wl_color_scheme
-        self.wl_resolution = wl_resolution
-        self.wl_fineprint = wl_fineprint
-        if self.alphabet == "dna":
-            self.wl_sequence_type = "dna"
-        elif self.alphabet == "rna":
-            self.wl_sequence_type = "rna"
-        elif self.alphabet == "protein":
-            self.wl_sequence_type = "protein"
-        else:
-            self.wl_sequence_type = "auto"
-
-        # parameters for command string
-        self.cmd_params = ""
         # no. of seqs in input file, to be set by fit()
         self.n_seqs = 0
         # to store the names of sequences as given in input file to fit()
@@ -206,12 +164,10 @@ class Meme(MotifWrapper):
         self.pseudocounts = pseudocounts
         # list-of-strings representation of motifs
         self.motives_list = list()
-        # aligned list-of-strings of motifs, created by display_logo method
+        # aligned list-of-strings of motifs
         self.aligned_motives_list = list()
         # list of sequence logos created with WebLogo
         self.logos = list()
-        # threshold for scoring sequences
-        self.threshold = 1.0e-9
 
     def _make_param_string(self):
         # Creates a string of parameters
@@ -328,11 +284,11 @@ class Meme(MotifWrapper):
         if self.v is True:
             params += " -V"
 
-        self.cmd_params = params
+        return params
 
-    def _command_exec(self, fasta_file=""):
+    def _command_exec(self, fasta_file="", params=""):
         # execute the meme command and return output
-        cmd = "meme " + fasta_file + " " + self.cmd_params
+        cmd = "meme " + fasta_file + " " + params
         io = Popen(cmd.split(" "), stdout=PIPE, stderr=PIPE)
         (stderr, stdout) = io.communicate()
 
@@ -366,12 +322,12 @@ class Meme(MotifWrapper):
         return motives
 
     def fit(self, fasta_file=''):
-        """Save the output of MEME in specified folder and parse it."""
+        """Save the output of MEME and parse it."""
         if not fasta_file:
             raise NameError('Input fasta file not specified')
 
-        self._make_param_string()
-        self._command_exec(fasta_file)
+        cmd_params = self._make_param_string()
+        self._command_exec(fasta_file, cmd_params)
 
         # parsing meme output file with Biopython
         filename = os.path.join(self.output_dir, 'meme.txt')
