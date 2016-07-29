@@ -29,6 +29,9 @@ class Meme(MotifWrapper):
                  alphabet="dna",  # ["dna", "rna", "protein"]
                  gap_in_alphabet=True,
                  scoring_criteria="pwm",    # ["pwm", "hmm"]
+                 threshold=None,
+                 k=1,
+
 
                  # Contributing Site Distribution
                  mod="zoops",
@@ -99,10 +102,15 @@ class Meme(MotifWrapper):
         self.alphabet = alphabet
         self.gap_in_alphabet = gap_in_alphabet
         self.scoring_criteria = scoring_criteria
-        if scoring_criteria == 'pwm':
-            self.threshold = 1.0e-9
+        if threshold is None:
+            if scoring_criteria == 'pwm':
+                self.threshold = 1.0e-9
+            else:
+                self.threshold = 0.8
         else:
-            self.threshold = -200    # TODO: examine threshold for hmm
+            self.threshold = threshold
+        self.k = k
+
         self.mod = mod
         self.nmotifs = nmotifs
         self.evt = evt

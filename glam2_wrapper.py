@@ -1,4 +1,6 @@
 """A wrapper of the motif discovery tool GLAM2."""
+import os
+
 from subprocess import PIPE, Popen
 
 import commands
@@ -14,25 +16,15 @@ class Glam2(MotifWrapper):
     """Python wrapper for glam2 v=4.11.0 motif discovery tool.
 
     Original usage: Usage: glam2 [options] alphabet my_seqs.fa
-
-    Attributes:
-        alphabet: "p" for proteins, "n" for nucleotides (n)
-        fasta_file: Input file with sequences in FASTA format
-        outptu_dir: Directory to save the output (glam2_out); -O TODO: check path compatibility
-        number_alignment_runs: number of alignment runs (10); -r
-        number_iterations: end each run after this many iterations without improvement (10000); -n
-        both_strands: examine both strands - forward and reverse complement; -2
-        min_sequences: minimum number of sequences in the alignment (2); -z
-        min_aligned_columns: minimum number of aligned columns (2); -a
-        max_aligned_columns: maximum number of aligned columns (50); -b
-        initial_aligned_columns: initial number of aligned columns (20); -w
-        threshold:
     """
 
     def __init__(self,
                  alphabet="dna",    # ["dna", protein"]
                  gap_in_alphabet=True,
                  scoring_criteria="pwm",    # ["pwm", "hmm"]
+                 pseudocounts=0,
+                 threshold=None,
+                 k=1,
                  output_dir="glam2_out",
                  number_alignment_runs=10,
                  number_iterations=10000,
@@ -49,11 +41,15 @@ class Glam2(MotifWrapper):
         self.alphabet = alphabet
         self.gap_in_alphabet = gap_in_alphabet
         self.scoring_criteria = scoring_criteria
-        # threshold for scoring sequences
-        if scoring_criteria == 'pwm':
-            self.threshold = 1.0e-9
+        self.pseudocounts = pseudocounts
+        if threshold is None:
+            if scoring_criteria == 'pwm':
+                self.threshold = 1.0e-9
+            else:
+                self.threshold = 0.8
         else:
-            self.threshold = -200    # TODO: examine threshold for hmm
+            self.threshold = threshold
+        self.k = k
         self.output_dir = output_dir    # -O
         self.number_alignment_runs = number_alignment_runs    # -r
         self.number_iterations = number_iterations     # -n
@@ -76,8 +72,6 @@ class Glam2(MotifWrapper):
         self.aligned_motives_list = list()
         # list of sequence logos created with WebLogo
         self.logos = list()
-        # threshold for scoring sequences
-        self.threshold
 
     def _make_param_string(self):
         # Creates a string of parameters
@@ -120,6 +114,18 @@ class Glam2(MotifWrapper):
 
         logger.info(stdout)
 
+    def _parse_glam2_file(self, file):
+        # TODO
+        return None
+
+    def _get_motives_list(self, record):
+        # TODO
+        return None
+
+    def _get_a_motives(self, motives):
+        # TODO
+        return None
+
     def fit(self, fasta_file=''):
         """Save the output of Glam2 and parse it."""
         if not fasta_file:
@@ -128,21 +134,13 @@ class Glam2(MotifWrapper):
         cmd_params = self._make_param_string()
         self._command_exec(fasta_file, cmd_params)
 
-        """
-        command = "glam2" + " -O " + self.output_dir + " -r " + str(self.number_alignment_runs) + " -n " + str(self.number_iterations)
+        filename = os.path.join(self.output_dir, 'glam2.txt')
+        handle = open(filename)
+        record = self._parse_glam2_file(handle)
+        handle.close()
 
-        if self.both_strands == 1:
-            command = command + " -2 "
-
-        command += " -z " + str(self.min_sequences) + " -a " + str(self.min_aligned_columns) + " -b " + str(self.max_aligned_columns) + " -w " + str(self.initial_aligned_columns) + " " + self.alphabet + " " + fasta_file
-
-        status, output = commands.getstatusoutput(command)
-        if status != 0:
-            print "Error: Command not executed on terminal."
-            return output
-
-        return output
-        """
+        self.motives_list = self._get_motives(record)
+        self.aligned_motives_list = self._get_a_motives(self.motives_list)
 
     def fit_predict(self, fasta_file, return_list=False):
         """Run fit and predict."""

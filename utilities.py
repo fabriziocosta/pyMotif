@@ -202,8 +202,10 @@ class MotifWrapper(object):
     def __init__(self,
                  alphabet='dna',  # ['dna', 'rna', 'protein']
                  gap_in_alphabet=True,
-                 pseudocounts=0,    # {'A':0, 'C': 0, 'G': 0, 'T': 0}
                  scoring_criteria='pwm',    # ['pwm','hmm']
+                 pseudocounts=0,    # integer or dictionary {'A':0, 'C': 0, 'G': 0, 'T': 0}
+                 threshold=None,    # scoring threshold
+                 k=1,    # top-k scores returned for hmm score
 
                  # parameters for Muscle Alignment
                  ma_diags=False,
@@ -218,10 +220,14 @@ class MotifWrapper(object):
         self.alphabet = alphabet
         self.gap_in_alphabet = gap_in_alphabet
         self.scoring_criteria = scoring_criteria
-        if scoring_criteria == 'pwm':
-            self.threshold = 1.0e-9
+        if threshold is None:
+            if scoring_criteria == 'pwm':
+                self.threshold = 1.0e-9
+            else:
+                self.threshold = 0.8
         else:
-            self.threshold = -200    # TODO: examine threshold for hmm
+            self.threshold = threshold
+        self.k = k
 
         self.muscle_obj = muscle_obj
         self.weblogo_obj = weblogo_obj
@@ -310,8 +316,7 @@ class MotifWrapper(object):
         else:
             return self._create_matrix(motif_num - 1)
 
-    def _score_pwm(self, motif_num=1, seq='', zero_padding=True):
-        """Return score_list of a sequence according to PWM of the motif."""
+    def _eval_pwm(self, motif_num=1, seq=''):
         pwm_i = self.pwms_list[motif_num - 1]
         seq_len = len(seq)
         motif_len = len(pwm_i.itervalues().next())
@@ -324,9 +329,9 @@ class MotifWrapper(object):
                 letter = seq[i + j]
                 segment_score *= pwm_i[letter][j]
             scores.append(segment_score)
-        if zero_padding is True:
-            for i in range(seq_len - len(scores)):
-                scores.append(0)
+        # zero padding
+        for i in range(seq_len - len(scores)):
+            scores.append(0)
         return scores
 
     def _parse_fasta_file(self, fasta_file):
@@ -342,17 +347,38 @@ class MotifWrapper(object):
     def _predict_pwm(self, sequences, seq_lists):
         for i, s in enumerate(sequences):
             for j in range(len(self.pwms_list)):
-                score = self._score_pwm(motif_num=j + 1, seq=s)
+                score = self._eval_pwm(motif_num=j + 1, seq=s)
                 for scr in score:
                     if scr > self.threshold:
                         if max(score) > self.threshold:
                             seq_lists[i].append(j)
         return seq_lists
 
+    def _eval_mm(self, motif_num=1, seq=''):
+        """Return log_score_list of a sequence according to motif's HMM."""
+        mm = self.hmms_list[motif_num - 1]
+        hidden_states = len(mm.states)
+        seq_len = len(seq)
+
+        if seq_len < hidden_states:
+            raise ValueError('Sequence must be at least as long as the motif')
+        score = list()
+        for i in range(seq_len - hidden_states + 1):
+            seq_segment = seq[i:i + hidden_states - 1]
+            result = MarkovModel.find_states(mm, seq_segment)
+            score.append(result[0][1])
+
+        eps = 1e-100
+        log_score = [math.log(x + eps) for x in score]
+        # zero padding
+        for i in range(len(seq) - len(score)):
+            log_score.append(0)
+        return log_score
+
     def _predict_mm(self, sequences, seq_lists):
         for i, s in enumerate(sequences):
             for j in range(len(self.hmms_list)):
-                score = self._score_mm(motif_num=j + 1, seq=s)
+                score = self._eval_mm(motif_num=j + 1, seq=s)
                 for scr in score:
                     if scr < self.threshold:
                         if max(score) < self.threshold:
@@ -396,6 +422,9 @@ class MotifWrapper(object):
         last_indexes = [i + motif_len for i in start_indexes]
         return zip(start_indexes, last_indexes, scores)
 
+    def _get_key(self, item):
+        return item[2]
+
     def _get_occurence_indexandscore_mm(self, seq, motif_num):
         mm_i = self.hmms_list[motif_num]
         seq_len = len(seq)
@@ -414,7 +443,11 @@ class MotifWrapper(object):
                 start_indexes.append(i + 1)
 
         last_indexes = [i + motif_len for i in start_indexes]
-        return zip(start_indexes, last_indexes, scores)
+        data = zip(start_indexes, last_indexes, scores)
+        sorted_data = sorted(data, key=self._get_key, reverse=True)
+
+        top_result = sorted_data[:self.k]
+        return top_result
 
     def _transform_pwm(self, sequences, match_list):
         for i, s in enumerate(sequences):
@@ -601,30 +634,29 @@ class MotifWrapper(object):
                                   training_data=instances)
         return mm
 
-    def _score_mm(self, motif_num=1, seq='', zero_padding=True):
-        """Return log_score_list of a sequence according to motif's HMM."""
-        mm = self.hmms_list[motif_num - 1]
-        hidden_states = len(mm.states)
+    def _score_mm(self, motif_num=1, seq=''):
+        return self._eval_mm(motif_num=motif_num, seq=seq)
+
+    def _score_pwm(self, motif_num=1, seq=''):
+        pwm_i = self.pwms_list[motif_num - 1]
         seq_len = len(seq)
-
-        if seq_len < hidden_states:
+        motif_len = len(pwm_i.itervalues().next())
+        if seq_len < motif_len:
             raise ValueError('Sequence must be at least as long as the motif')
-        score = list()
-        for i in range(seq_len - hidden_states + 1):
-            seq_segment = seq[i:i + hidden_states - 1]
-            result = MarkovModel.find_states(mm, seq_segment)
-            score.append(result[0][1])
+        score_mat = np.zeros((seq_len - motif_len + 1, seq_len))
+        for i in range(seq_len - motif_len + 1):
+            segment_score = 1
+            for j in range(motif_len):
+                letter = seq[i + j]
+                segment_score *= pwm_i[letter][j]
+            for j in range(i, i + motif_len):
+                score_mat[i][j] = segment_score
+        # voting
+        max_score = [max(score_mat[:, i]) for i in range(seq_len)]
+        return max_score
 
-        eps = 1e-100
-        log_score = [math.log(x + eps) for x in score]
-
-        if zero_padding is True:
-            for i in range(len(seq) - len(score)):
-                log_score.append(0)
-        return log_score
-
-    def score(self, motif_num=1, seq='', zero_padding=True):
+    def score(self, motif_num=1, seq=''):
         """Return score of the test seq according to the scoring criteria."""
         if self.scoring_criteria == "pwm":
-            return self._score_pwm(motif_num=motif_num, seq=seq, zero_padding=zero_padding)
-        return self._score_mm(motif_num=motif_num, seq=seq, zero_padding=zero_padding)
+            return self._score_pwm(motif_num=motif_num, seq=seq)
+        return self._score_mm(motif_num=motif_num, seq=seq)

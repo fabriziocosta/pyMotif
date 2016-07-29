@@ -11,6 +11,10 @@ class EdenWrapper(MotifWrapper):
                  alphabet='dna',
                  gap_in_alphabet=True,
                  scoring_criteria='pwm',    # ["pwm","hmm"]
+                 pseudocounts=0,    # integer or dictionary {'A':0, 'C': 0, 'G': 0, 'T': 0}
+                 threshold=None,
+                 k=1,    # top-k scores returned for hmm score
+
                  min_subarray_size=7,
                  max_subarray_size=10,
                  min_motif_count=1,
@@ -20,8 +24,8 @@ class EdenWrapper(MotifWrapper):
                  shuffle_order=2,
                  n_iter_search=1,
                  complexity=4,
-                 # radius=None,    # TODO: check radius
-                 # distance=None,    # TODO: check distance
+                 # radius=None,
+                 # distance=None,
                  nbits=20,
                  clustering_algorithm=None,
                  n_jobs=4,
@@ -31,8 +35,6 @@ class EdenWrapper(MotifWrapper):
                  pre_processor_n_blocks=8,
                  pre_processor_block_size=None,
                  random_state=1,
-                 pseudocounts=0,
-                 threshold=1.0e-9,
 
                  muscle_obj=None,
                  weblogo_obj=None
@@ -56,18 +58,20 @@ class EdenWrapper(MotifWrapper):
                                 block_size=block_size,
                                 pre_processor_n_jobs=pre_processor_n_jobs,
                                 pre_processor_n_blocks=pre_processor_n_blocks,
-                                # TODO: check pre_processor_block_size
-                                # pre_processor_block_size=pre_processor_block_size,
+                                pre_processor_block_size=pre_processor_block_size,
                                 random_state=random_state,
                                 )
         self.alphabet = alphabet
         self.gap_in_alphabet = gap_in_alphabet
         self.scoring_criteria = scoring_criteria
-        # threshold for scoring sequences
-        if scoring_criteria == 'pwm':
-            self.threshold = 1.0e-9
+        if threshold is None:
+            if scoring_criteria == 'pwm':
+                self.threshold = 1.0e-9
+            else:
+                self.threshold = 0.8
         else:
-            self.threshold = -200    # TODO: examine threshold for hmm
+            self.threshold = threshold
+        self.k = k
 
         self.muscle_obj = muscle_obj
         self.weblogo_obj = weblogo_obj
