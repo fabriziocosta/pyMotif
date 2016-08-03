@@ -115,6 +115,8 @@ class SMoDWrapper(MotifWrapper):
                                                       freq_threshold=self.freq_threshold)
 
         self.nmotifs = len(clusters.keys())
+        if self.nmotifs == 0:
+            raise AttributeError("0 motives (clusters) found.")
         self.original_motives_list = self._get_motives_list(clusters)[:]
         self.aligned_motives_list = self._get_aligned_motives_list(
             self.original_motives_list)[:]
