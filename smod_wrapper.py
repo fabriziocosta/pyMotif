@@ -31,7 +31,7 @@ class SMoDWrapper(MotifWrapper):
                  min_score=4,
                  min_freq=0.5,
                  min_cluster_size=10,
-                 regex_th=.3,
+                 regex_th=0.3,
                  sample_size=200,
                  freq_th=None,
                  std_th=None,
