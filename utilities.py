@@ -629,6 +629,11 @@ class MotifWrapper(object):
         # Hidden states for Markov Model
         states = [str(i + 1) for i in range(median_len)]
 
+        if (len(instances) * len(states)) > 20000:
+            print "original chars: %d" % (len(instances) * len(states))
+            samples = 20000 / len(states)
+            instances = random.sample(instances, samples)
+
         mm = MarkovModel.train_bw(states=states,
                                   alphabet=alphabet,
                                   training_data=instances)
