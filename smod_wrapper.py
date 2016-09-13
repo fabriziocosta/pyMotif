@@ -17,25 +17,27 @@ class SMoDWrapper(MotifWrapper):
                  threshold=None,    # scoring threshold
                  k=1,
 
-                 complexity=3,
+                 complexity=5,
                  n_clusters=10,
-                 min_subarray_size=5,
+                 min_subarray_size=4,
                  max_subarray_size=10,
                  estimator=SGDClassifier(warm_start=True),
                  clusterer=MiniBatchKMeans(),
                  pos_block_size=300,
                  neg_block_size=300,
                  n_jobs=-1,
-                 similarity_threshold=0.5,
+                 p_value=0.05,
+                 similarity_th=0.5,
                  min_score=4,
-                 min_freq=0.6,
+                 min_freq=0.5,
                  min_cluster_size=10,
-                 regex_th=.3,
-                 freq_threshold=0.05,
+                 regex_th=0.3,
+                 sample_size=200,
+                 freq_th=None,
+                 std_th=None,
 
                  muscle_obj=None,
-                 weblogo_obj=None
-                 ):
+                 weblogo_obj=None):
         """Initialize a SMoDWrapper object."""
         self.smd = SMoD(complexity=complexity,
                         n_clusters=n_clusters,
@@ -46,12 +48,15 @@ class SMoDWrapper(MotifWrapper):
                         pos_block_size=pos_block_size,
                         neg_block_size=neg_block_size,
                         n_jobs=n_jobs)
-        self.similarity_threshold = similarity_threshold
+        self.p_value = p_value
+        self.similarity_th = similarity_th
         self.min_score = min_score
         self.min_freq = min_freq
         self.min_cluster_size = min_cluster_size
         self.regex_th = regex_th
-        self.freq_threshold = freq_threshold
+        self.sample_size = sample_size
+        self.freq_th = freq_th
+        self.std_th = std_th
 
         self.alphabet = alphabet
         self.gap_in_alphabet = gap_in_alphabet
@@ -85,7 +90,7 @@ class SMoDWrapper(MotifWrapper):
     def _get_motives_list(self, db):
         motives = list()
         for i in db.keys():
-            motives.append(db[i])
+            motives.append(db[i]['seqs'])
         return motives
 
     def _get_aligned_motives_list(self, motives):
@@ -103,21 +108,21 @@ class SMoDWrapper(MotifWrapper):
             neg_seqs = list(neg_seqs)
 
         self.smd = self.smd.fit(pos_seqs=seqs, neg_seqs=neg_seqs)
-        orig_clusters = self.smd.predict(seqs)
-        clusters, motives = self.smd.merge(orig_clusters,
-                                           similarity_threshold=self.similarity_threshold,
-                                           min_score=self.min_score,
-                                           min_freq=self.min_freq,
-                                           min_cluster_size=self.min_cluster_size,
-                                           regex_th=self.regex_th)
-        clusters, motives = self.smd.frequency_filter(seqs=seqs,
-                                                      motives=motives,
-                                                      freq_threshold=self.freq_threshold)
+        motives = self.smd.select_motives(seqs=seqs,
+                                          p_value=self.p_value,
+                                          similarity_th=self.similarity_th,
+                                          min_score=self.min_score,
+                                          min_freq=self.min_freq,
+                                          min_cluster_size=self.min_cluster_size,
+                                          regex_th=self.regex_th,
+                                          sample_size=self.sample_size,
+                                          freq_th=self.freq_th,
+                                          std_th=self.std_th)
 
-        self.nmotifs = len(clusters.keys())
+        self.nmotifs = len(motives.keys())
         if self.nmotifs == 0:
-            raise AttributeError("0 motives (clusters) found.")
-        self.original_motives_list = self._get_motives_list(clusters)[:]
+            raise AttributeError("0 motives found.")
+        self.original_motives_list = self._get_motives_list(motives)[:]
         self.aligned_motives_list = self._get_aligned_motives_list(
             self.original_motives_list)[:]
         self.motives_list = self.adapt_motives(
