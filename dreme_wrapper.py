@@ -10,8 +10,30 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-class Dreme(MotifWrapper):
+class Record(list):
+    """A class for holding the results of a DREME run."""
 
+    def __init__(self):
+        """Initialize record."""
+        self.version = ""
+        self.datafile = ""
+        self.command = ""
+        self.alphabet = None
+        self.sequences = []
+
+
+def __read_version(record, handle):
+    for line in handle:
+        if line.startswith('MEME version'):
+            break
+    else:
+        raise ValueError("Improper input file. File should contain a line starting MEME version.")
+    line = line.strip()
+    ls = line.split()
+    record.version = ls[2]
+
+
+class Dreme(MotifWrapper):
     """
     Wrapper for DREME 4.11.0.
 
@@ -145,8 +167,9 @@ class Dreme(MotifWrapper):
 
         logger.info(stdout)
 
-    def _parse_output(self, filename):
-        pass
+    def _parse_output(self, handle):
+        record = Record()
+        __read_version(record, handle)
 
     def fit(self, fasta_file='', control_file=''):
         """Save the output of DREME and parse it."""
