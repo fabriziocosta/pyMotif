@@ -152,14 +152,6 @@ class Dreme(MotifWrapper):
 
         logger.info(stdout)
 
-    """
-    def _parse_output(self, filename):
-        record = Record()
-        with open(filename) as handle:
-            record._get_data(handle)
-        return record
-    """
-
     def fit(self, fasta_file='', control_file=None):
         """Save the output of DREME and parse it."""
         if not fasta_file:
@@ -176,30 +168,7 @@ class Dreme(MotifWrapper):
         record = Record()
         with open(filename) as handle:
             record._get_data(handle)
-        return record.version, record.alphabet, record.instances
-        pwm = []
-        widths = []
-        consensus_seqs = []
-        for i in range(len(record.instances)):
-            pwm.append(record.instances[i].prob_matrix)
-            widths.append(record.instances[i].widths)
-            consensus_seqs.append(record.instances[i].consensus_seqs)
-
-        self.pwms_list = pwm[:]
-        self.widths = widths[:]
-        self.consensus = consensus_seqs[:]
-
-
-class Instance():
-    """Class to store details of a motif."""
-
-    def __init__(self):
-        """Init."""
-        self.consensus_seq = ""
-        self.width = None
-        self.nsites = None
-        self.e_value = None
-        self.prob_matrix = None
+        return record
 
 
 class Record(list):
@@ -209,7 +178,12 @@ class Record(list):
         """init."""
         self.version = ""
         self.alphabet = None
-        self.instances = []
+        # self.instances = []
+        self.consensus_seqs = list()
+        self.widths = list()
+        self.nsites = list()
+        self.e_values = list()
+        self.prob_matrices = list()
 
     def _read_version(self, handle):
         for line in handle:
@@ -240,21 +214,26 @@ class Record(list):
         self.alphabet = al
 
     def _read_motifs(self, handle):
-        insts = []
+        # insts = []
+        consensus = []
+        lengths = []
+        num_sites = []
+        evalues = []
+        matrices = []
         for line in handle:
             if '# Stopping reason:' in line:
                 break
 
             if line.startswith('MOTIF'):
-                instance = Instance()
-                instance.consensus_seq = line.split(' ')[1]
+                # instance = Instance()
+                consensus.append(line.split(' ')[1])
 
             if line.startswith('letter-probability matrix'):
                 line = line.split()
                 width = int(line[5])
-                instance.width = width
-                instance.nsites = int(line[7])
-                instance.e_value = float(line[9])
+                lengths.append(width)
+                num_sites.append(int(line[7]))
+                evalues.append(float(line[9]))
 
                 pwm = []
                 for i in range(width):
@@ -264,9 +243,12 @@ class Record(list):
                     data = [float(x) for x in data]
                     pwm.append(data)
 
-                instance.prob_matrix = pwm[:]
-                insts.append(instance)
-        self.instances = insts[:]
+                matrices.append(pwm)
+        self.consensus_seqs = consensus[:]
+        self.widths = lengths[:]
+        self.nsites = num_sites[:]
+        self.e_values = evalues[:]
+        self.prob_matrices = matrices[:]
 
     def _get_data(self, handle):
         self._read_version(handle)
