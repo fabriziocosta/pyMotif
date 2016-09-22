@@ -3,34 +3,13 @@ import os
 
 from subprocess import PIPE, Popen
 
-from utilities import MotifWrapper, MuscleAlignWrapper
+from utilities import MotifWrapper
+
+from Bio.Alphabet import IUPAC
 
 import logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-
-class Record(list):
-    """A class for holding the results of a DREME run."""
-
-    def __init__(self):
-        """Initialize record."""
-        self.version = ""
-        self.datafile = ""
-        self.command = ""
-        self.alphabet = None
-        self.sequences = []
-
-
-def __read_version(record, handle):
-    for line in handle:
-        if line.startswith('MEME version'):
-            break
-    else:
-        raise ValueError("Improper input file. File should contain a line starting MEME version.")
-    line = line.strip()
-    ls = line.split()
-    record.version = ls[2]
 
 
 class Dreme(MotifWrapper):
@@ -101,21 +80,27 @@ class Dreme(MotifWrapper):
         self.weblogo_obj = weblogo_obj
 
         # no. of seqs in input file, to be set by fit()
-        self.n_seqs = 0
+        # self.n_seqs = 0
         # to store the names of sequences as given in input file to fit()
-        self.seq_names = list()
+        # self.seq_names = list()
         # over-rides same attribute of MotifWrapper class
-        self.pseudocounts = pseudocounts
+        # self.pseudocounts = pseudocounts
         # list-of-strings representation of motifs
         self.motives_list = list()
         # aligned list-of-strings of motifs
         self.aligned_motives_list = list()
         # list of sequence logos created with WebLogo
         self.logos = list()
+        # list of PWMS created by DREME
+        self.pwms_list = list()
+        # list of motif widths
+        self.widths = list()
+        # list of motif consensus sequences
+        self.consensus = list()
 
     def _make_param_string(self):
         # creates a string of parameters
-        params = '-o ' + self.output_dir
+        params = '-oc ' + self.output_dir
 
         if self.alphabet == 'dna':
             params += ' -dna'
@@ -157,7 +142,7 @@ class Dreme(MotifWrapper):
         return params
 
     def _command_exec(self, primary_file, control_file, params):
-        cmd = 'dreme' + params + ' -p ' + str(primary_file)
+        cmd = 'dreme ' + params + ' -p ' + str(primary_file)
 
         if control_file is not None:
             cmd += cmd + ' -n ' + str(control_file)
@@ -167,18 +152,123 @@ class Dreme(MotifWrapper):
 
         logger.info(stdout)
 
-    def _parse_output(self, handle):
+    """
+    def _parse_output(self, filename):
         record = Record()
-        __read_version(record, handle)
+        with open(filename) as handle:
+            record._get_data(handle)
+        return record
+    """
 
-    def fit(self, fasta_file='', control_file=''):
+    def fit(self, fasta_file='', control_file=None):
         """Save the output of DREME and parse it."""
         if not fasta_file:
             return NameError('Input fasta file not specified')
 
         cmd_params = self._make_param_string()
+
         self._command_exec(fasta_file, control_file, cmd_params)
 
         filename = os.path.join(self.output_dir, 'dreme.txt')
 
-        record = self._parse_output(filename)
+        # record = self._parse_output(filename)
+        # parsing
+        record = Record()
+        with open(filename) as handle:
+            record._get_data(handle)
+        return record.version, record.alphabet, record.instances
+        pwm = []
+        widths = []
+        consensus_seqs = []
+        for i in range(len(record.instances)):
+            pwm.append(record.instances[i].prob_matrix)
+            widths.append(record.instances[i].widths)
+            consensus_seqs.append(record.instances[i].consensus_seqs)
+
+        self.pwms_list = pwm[:]
+        self.widths = widths[:]
+        self.consensus = consensus_seqs[:]
+
+
+class Instance():
+    """Class to store details of a motif."""
+
+    def __init__(self):
+        """Init."""
+        self.consensus_seq = ""
+        self.width = None
+        self.nsites = None
+        self.e_value = None
+        self.prob_matrix = None
+
+
+class Record(list):
+    """A class for holding the results of a DREME run."""
+
+    def __init__(self):
+        """init."""
+        self.version = ""
+        self.alphabet = None
+        self.instances = []
+
+    def _read_version(self, handle):
+        for line in handle:
+            if line.startswith('# DREME'):
+                break
+        else:
+            raise ValueError("Improper input file. File should contain a line starting DREME.")
+        line = line.strip()
+        ls = line.split()
+        self.version = ls[2]
+
+    def _read_alphabet(self, handle):
+        for line in handle:
+            if line.startswith('ALPHABET'):
+                break
+        if not line.startswith('ALPHABET'):
+            raise ValueError("Line does not start with 'ALPHABET':\n%s" % line)
+
+        line = line.strip()
+
+        if 'DNA' in line:
+            al = IUPAC.unambiguous_dna
+        elif 'RNA' in line:
+            al = IUPAC.unambiguous_rna
+        else:
+            al = IUPAC.protein
+
+        self.alphabet = al
+
+    def _read_motifs(self, handle):
+        insts = []
+        for line in handle:
+            if '# Stopping reason:' in line:
+                break
+
+            if line.startswith('MOTIF'):
+                instance = Instance()
+                instance.consensus_seq = line.split(' ')[1]
+
+            if line.startswith('letter-probability matrix'):
+                line = line.split()
+                width = int(line[5])
+                instance.width = width
+                instance.nsites = int(line[7])
+                instance.e_value = float(line[9])
+
+                pwm = []
+                for i in range(width):
+                    line = next(handle)
+                    data = line.strip()
+                    data = data.split(' ')
+                    data = [float(x) for x in data]
+                    pwm.append(data)
+
+                instance.prob_matrix = pwm[:]
+                insts.append(instance)
+        self.instances = insts[:]
+
+    def _get_data(self, handle):
+        self._read_version(handle)
+        self._read_alphabet(handle)
+        self._read_motifs(handle)
