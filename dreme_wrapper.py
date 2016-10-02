@@ -150,7 +150,7 @@ class Dreme(MotifWrapper):
         io = Popen(cmd.split(" "), stdout=PIPE, stderr=PIPE)
         (stderr, stdout) = io.communicate()
 
-        logger.info(stdout)
+        # logger.info(stdout)
 
     def fit(self, fasta_file='', control_file=None):
         """Save the output of DREME and parse it."""

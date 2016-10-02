@@ -292,7 +292,7 @@ class Meme(MotifWrapper):
         io = Popen(cmd.split(" "), stdout=PIPE, stderr=PIPE)
         (stderr, stdout) = io.communicate()
 
-        logger.info(stdout)
+        # logger.info(stdout)
 
     def _get_stats(self, n_motifs):
         widths = list()

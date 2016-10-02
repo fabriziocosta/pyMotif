@@ -112,7 +112,7 @@ class Glam2(MotifWrapper):
         io = Popen(cmd.split(" "), stdout=PIPE, stderr=PIPE)
         (stderr, stdout) = io.communicate()
 
-        logger.info(stdout)
+        # logger.info(stdout)
 
     def _parse_glam2_file(self, file):
         # TODO
