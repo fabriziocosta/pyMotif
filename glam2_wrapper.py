@@ -58,7 +58,9 @@ class Glam2(MotifWrapper):
                  ):
         """Return a Glam2 object with specified attribute values."""
         self.alphabet = alphabet
-        self.gap_in_alphabet = gap_in_alphabet
+        self.gap_in_alphabet = True    # glam2 always uses gapped alphabets
+        if gap_in_alphabet is False:
+            raise ValueError('Glam2 returns local alignments, hence uses gap in alphabet')
         self.scoring_criteria = scoring_criteria
         self.pseudocounts = pseudocounts
         if threshold is None:

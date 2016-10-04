@@ -172,8 +172,7 @@ class Weblogo(object):
     def create_logo(self, seqs=[]):
         """Create sequence logo for input sequences."""
         # seperate headers
-        headers, instances = [list(x)
-                              for x in zip(*seqs)]
+        headers, instances = [list(x) for x in zip(*seqs)]
 
         if self.options.sequence_type is 'rna':
             alphabet = Alphabet('ACGU')
@@ -285,6 +284,10 @@ class MotifWrapper(object):
                 alphabet = 'ACGU'
             else:
                 alphabet = 'ACGT'
+
+            if self.gap_in_alphabet is True:
+                alphabet += '-'
+
             hmms = list()
             for i in range(len(motives)):
                 hmms.append(self._create_mm(motif_num=i + 1, alphabet=alphabet))
@@ -629,16 +632,17 @@ class MotifWrapper(object):
         # Hidden states for Markov Model
         states = [str(i + 1) for i in range(median_len)]
 
-        if (len(instances) * len(states)) > 20000:
-            print "original chars: %d" % (len(instances) * len(states))
+        # under sampling
+        if len(instances) > 50:
+            print "original samples: %d" % len(instances)
             # samples = 20000 / len(states)
-            samples = 10    # fixed sampling
-            print samples    # ####
+            samples = 50    # fixed sampling
+            print 'sample size = %d' % samples
             instances = random.sample(instances, samples)
 
-        mm = MarkovModel.train_bw(states=states,
-                                  alphabet=alphabet,
-                                  training_data=instances)
+        mm = MarkovModel.train_visible(states=states,
+                                       alphabet=alphabet,
+                                       training_data=instances)
         return mm
 
     def _score_mm(self, motif_num=1, seq=''):
