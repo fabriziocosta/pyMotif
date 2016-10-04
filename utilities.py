@@ -631,8 +631,9 @@ class MotifWrapper(object):
 
         if (len(instances) * len(states)) > 20000:
             print "original chars: %d" % (len(instances) * len(states))
-            #samples = 20000 / len(states)
-            samples = 100
+            # samples = 20000 / len(states)
+            samples = 10    # fixed sampling
+            print samples    # ####
             instances = random.sample(instances, samples)
 
         mm = MarkovModel.train_bw(states=states,
