@@ -108,16 +108,19 @@ class SMoDWrapper(MotifWrapper):
             neg_seqs = list(neg_seqs)
 
         self.smd = self.smd.fit(pos_seqs=seqs, neg_seqs=neg_seqs)
-        motives = self.smd.select_motives(seqs=seqs,
-                                          p_value=self.p_value,
-                                          similarity_th=self.similarity_th,
-                                          min_score=self.min_score,
-                                          min_freq=self.min_freq,
-                                          min_cluster_size=self.min_cluster_size,
-                                          regex_th=self.regex_th,
-                                          sample_size=self.sample_size,
-                                          freq_th=self.freq_th,
-                                          std_th=self.std_th)
+        try:
+            motives = self.smd.select_motives(seqs=seqs,
+                                              p_value=self.p_value,
+                                              similarity_th=self.similarity_th,
+                                              min_score=self.min_score,
+                                              min_freq=self.min_freq,
+                                              min_cluster_size=self.min_cluster_size,
+                                              regex_th=self.regex_th,
+                                              sample_size=self.sample_size,
+                                              freq_th=self.freq_th,
+                                              std_th=self.std_th)
+        except AttributeError:
+            raise Exception('No motives found.')
 
         self.nmotifs = len(motives.keys())
         if self.nmotifs == 0:
