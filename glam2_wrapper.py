@@ -5,7 +5,7 @@ from subprocess import PIPE, Popen
 
 import commands
 
-from utilities import MotifWrapper
+from utilities import MotifWrapper, MuscleAlignWrapper
 
 from Bio.Alphabet import IUPAC
 
@@ -102,6 +102,8 @@ class Glam2(MotifWrapper):
         self.motives_list = list()
         # aligned list-of-strings of motifs
         self.aligned_motives_list = list()
+        # list-of-strings representation of motifs as found by glam2
+        self.original_motives_list = list()
         # list of sequence logos created with WebLogo
         self.logos = list()
 
@@ -184,6 +186,13 @@ class Glam2(MotifWrapper):
         record._parse_output(filename)
         return record
 
+    def _get_aligned_motives_list(self, motives):
+        aligned_motives = []
+        ma = MuscleAlignWrapper()
+        for i in range(len(motives)):
+            aligned_motives.append(ma.transform(seqs=motives[i]))
+        return aligned_motives
+
     def fit(self, fasta_file=''):
         """Save the output of Glam2 and parse it."""
         if not fasta_file:
@@ -196,10 +205,13 @@ class Glam2(MotifWrapper):
         self.record = record
         self.nmotifs = record.nmotifs
 
-        self.motives_list = record.motives_list[:]
+        self.original_motives_list = record.motives_list[:]
+        motives_list = self.original_motives_list[:]
+        self.aligned_motives_list = self._get_aligned_motives_list(
+            self.original_motives_list)[:]
+        self.motives_list = self.adapt_motives(self.aligned_motives_list)[:]
 
         # create PWMs
-        motives_list = self.motives_list[:]
         super(Glam2, self).fit(motives=motives_list)
 
     def fit_predict(self, fasta_file='', return_list=False):

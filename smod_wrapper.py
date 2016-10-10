@@ -123,8 +123,6 @@ class SMoDWrapper(MotifWrapper):
             raise Exception('No motives found.')
 
         self.nmotifs = len(motives.keys())
-        if self.nmotifs == 0:
-            raise AttributeError("0 motives found.")
         self.original_motives_list = self._get_motives_list(motives)[:]
         self.aligned_motives_list = self._get_aligned_motives_list(
             self.original_motives_list)[:]

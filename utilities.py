@@ -640,9 +640,9 @@ class MotifWrapper(object):
             print 'sample size = %d' % samples
             instances = random.sample(instances, samples)
 
-        mm = MarkovModel.train_visible(states=states,
-                                       alphabet=alphabet,
-                                       training_data=instances)
+        mm = MarkovModel.train_bw(states=states,
+                                  alphabet=alphabet,
+                                  training_data=instances)
         return mm
 
     def _score_mm(self, motif_num=1, seq=''):
