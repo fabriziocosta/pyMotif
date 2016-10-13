@@ -636,7 +636,6 @@ class MotifWrapper(object):
         print "states:", len(states)
         # under sampling
         if (len(instances) * len(states)) > 500:
-
             samples = 500 / len(states)
             # samples = 50    # fixed sampling
             print 'sample size = %d' % samples
