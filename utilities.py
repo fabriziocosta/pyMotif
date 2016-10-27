@@ -632,17 +632,20 @@ class MotifWrapper(object):
         # Hidden states for Markov Model
         states = [str(i + 1) for i in range(median_len)]
 
+        print "original samples: %d" % len(instances)
+        print "states:", len(states)
         # under sampling
-        if len(instances) > 50:
-            print "original samples: %d" % len(instances)
-            # samples = 20000 / len(states)
-            samples = 50    # fixed sampling
+        if (len(instances) * len(states)) > 500:
+            samples = 500 / len(states)
+            # samples = 50    # fixed sampling
             print 'sample size = %d' % samples
             instances = random.sample(instances, samples)
 
-        mm = MarkovModel.train_visible(states=states,
-                                       alphabet=alphabet,
-                                       training_data=instances)
+        instances = random.sample(instances, samples)
+
+        mm = MarkovModel.train_bw(states=states,
+                                  alphabet=alphabet,
+                                  training_data=instances)
         return mm
 
     def _score_mm(self, motif_num=1, seq=''):

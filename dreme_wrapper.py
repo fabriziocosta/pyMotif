@@ -6,6 +6,7 @@ from subprocess import PIPE, Popen
 from utilities import MotifWrapper
 
 from Bio.Alphabet import IUPAC
+from Bio import SeqIO
 
 import logging
 logger = logging.getLogger(__name__)
@@ -80,11 +81,13 @@ class Dreme(MotifWrapper):
         self.weblogo_obj = weblogo_obj
 
         # no. of seqs in input file, to be set by fit()
-        # self.n_seqs = 0
+        self.n_seqs = 0
         # to store the names of sequences as given in input file to fit()
-        # self.seq_names = list()
+        self.seq_names = list()
         # over-rides same attribute of MotifWrapper class
-        # self.pseudocounts = pseudocounts
+        self.pseudocounts = pseudocounts
+        # number of motives found
+        self.nmotifs = None
         # list-of-strings representation of motifs
         self.motives_list = list()
         # aligned list-of-strings of motifs
@@ -97,6 +100,10 @@ class Dreme(MotifWrapper):
         self.widths = list()
         # list of motif consensus sequences
         self.consensus = list()
+        # record of motif data
+        self.record = None
+        # list of sequence logos created with Weblogo
+        self.logos = list()
 
     def _make_param_string(self):
         # creates a string of parameters
@@ -163,12 +170,93 @@ class Dreme(MotifWrapper):
 
         filename = os.path.join(self.output_dir, 'dreme.txt')
 
-        # record = self._parse_output(filename)
-        # parsing
+        # record is useful information retrieved from parsing output
         record = Record()
         with open(filename) as handle:
             record._get_data(handle)
-        return record
+
+        self.record = record
+        self.consensus = record.consensus_seqs[:]
+        self.widths = record.widths[:]
+        self.nmotifs = len(record.consensus_seqs)
+        headers, seqs = self._parse_fasta(fasta_file)
+        self.nseqs = len(headers)
+        self.seq_names = headers[:]
+        self.motives_list = self._get_motives_list(self.nmotifs, headers, seqs)
+        super(Dreme, self).fit(motives=self.motives_list)
+
+    def _parse_fasta(self, filename):
+        headers = []
+        seqs = []
+        for seq_record in SeqIO.parse(filename, "fasta"):
+            headers.append(seq_record.id)
+            seqs.append(str(seq_record.seq))
+        return headers, seqs
+
+    def _get_motif_seqs(self, scores, headers, seqs, width):
+        motif_occs = []
+        for scr in scores:
+            i, j, k = scr
+            header_x = headers[k]
+            seq_x = seqs[k]
+            motif = seq_x[j:j + width]
+            motif_occs.append((header_x, motif))
+        return motif_occs
+
+    def _get_scores_list(self, seqs, width, alpha, pm):
+        scores = []    # best segment score for each sequence
+        for k, seq in enumerate(seqs):
+            seq_scores = []
+            for i in xrange(len(seq) - width):
+                segment_scr = 0
+                for j in xrange(width):
+                    try:
+                        alpha_id = alpha.index(seq[i + j])
+                        segment_scr += pm[j][alpha_id]
+
+                    except ValueError:
+                        # ignore any alphabet not in the alphabet list
+                        continue
+                seq_scores.append((segment_scr, i))
+            max_segment = max(seq_scores)
+            data = (max_segment[0], max_segment[1], k)    # (score, start_index, seq_id)
+            scores.append(data)
+        return scores
+
+    def _modify_chars(self, motives_list):
+        mod_motif_list = []
+        for motif_i in motives_list:
+            heads, seq = [list(x) for x in zip(*motif_i)]
+            seq_new = []
+            for s in seq:
+                s_list = list(s)
+                for i, char in enumerate(s_list):
+                    if char not in self.record.alphabet.letters:
+                        s_list[i] = "-"
+                s_new = "".join(s_list)
+                seq_new.append(s_new)
+            mod_motif_list.append(zip(heads, seq_new))
+        return mod_motif_list
+
+    def _get_motives_list(self, nmotifs, headers, seqs):
+        motives_list = []
+        for n in xrange(nmotifs):
+            width = self.record.widths[n]
+            nsites = self.record.nsites[n]
+            pm = self.record.prob_matrices[n]
+            alpha = self.record.alphabet.letters
+            alpha = sorted(alpha)
+
+            scores = self._get_scores_list(seqs, width, alpha, pm)
+
+            scores_sort = sorted(scores, reverse=True)
+            scores_top = scores_sort[:nsites]
+
+            motif_data = self._get_motif_seqs(scores_top, headers, seqs, width)
+            motives_list.append(motif_data)
+
+        motives_list = self._modify_chars(motives_list)
+        return motives_list
 
 
 class Record(list):
