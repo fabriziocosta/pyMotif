@@ -173,7 +173,7 @@ class Glam2(MotifWrapper):
         io = Popen(cmd.split(" "), stdout=PIPE, stderr=PIPE)
         (stderr, stdout) = io.communicate()
 
-        # logger.info(stdout)
+        logger.info(stdout)
 
     def _parse_glam2_outfile(self, output_dir):
         record = Record()
@@ -209,7 +209,7 @@ class Glam2(MotifWrapper):
         motives_list = self.original_motives_list[:]
         self.aligned_motives_list = self._get_aligned_motives_list(
             self.original_motives_list)[:]
-        self.motives_list = self.adapt_motives(self.aligned_motives_list)[:]
+        self.motives_list = self.adapt_motives(self.original_motives_list)[:]
 
         # create PWMs
         super(Glam2, self).fit(motives=motives_list)
