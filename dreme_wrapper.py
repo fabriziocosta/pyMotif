@@ -168,7 +168,7 @@ class Dreme(MotifWrapper):
         cmd_params = self._make_param_string()
         self._command_exec(fasta_file, control_file, cmd_params)
         end = time()
-        logger.info('DREME finished in %d s' % (end - start))
+        logger.debug('DREME finished in %d s' % (end - start))
 
         start = time()
         filename = os.path.join(self.output_dir, 'dreme.txt')
@@ -187,7 +187,7 @@ class Dreme(MotifWrapper):
         self.motives_list = self._get_motives_list(self.nmotifs, headers, seqs)
         super(Dreme, self).fit(motives=self.motives_list)
         end = time()
-        logger.info('Processing DREME output finished in %d s' % (end - start))
+        logger.debug('Processing DREME output finished in %d s' % (end - start))
 
     def _parse_fasta(self, filename):
         headers = []
