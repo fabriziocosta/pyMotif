@@ -1,0 +1,113 @@
+# packages in environment at /home/zr/anaconda2/envs/hiwi:
+#
+backports-abc             0.4                       <pip>
+backports.ssl-match-hostname 3.4.0.2                   <pip>
+backports_abc             0.4                      py27_0    defaults
+bcftools                  1.3.1                         0    bioconda
+biopython                 1.66                np110py27_0    defaults
+cairo                     1.12.18                       6    defaults
+curl                      7.49.0                        0    defaults
+cvxopt                    1.1.8                    py27_0    defaults
+cycler                    0.10.0                   py27_0    defaults
+decorator                 4.0.10                   py27_0    defaults
+dill                      0.2.5                    py27_0    defaults
+eden                      0.2.1b                   py27_1    bgruening
+esmre                     0.3.1                    py27_0    http://conda.anaconda.org/pramukta/linux-64/esmre-0.3.1-py27_0.tar.bz2
+flake8                    2.5.1                     <pip>
+fontconfig                2.11.1                        6    defaults
+freetype                  2.5.5                         1    defaults
+graphviz                  2.38.0                        3    http://conda.anaconda.org/pdrops/linux-64/graphviz-2.38.0-3.tar.bz2
+hmmlearn                  0.2.0                     <pip>
+htslib                    1.3.1                         0    bioconda
+ipykernel                 4.1.1                    py27_0    defaults
+ipython                   4.0.1                    py27_0    defaults
+ipython-genutils          0.1.0                     <pip>
+ipython_genutils          0.1.0                    py27_0    defaults
+ipywidgets                4.1.0                    py27_0    defaults
+jbig                      2.1                           0    defaults
+jinja2                    2.8                      py27_0    defaults
+joblib                    0.9.4                    py27_0    defaults
+jpeg                      8d                            1    defaults
+jsonschema                2.4.0                    py27_0    defaults
+jupyter                   1.0.0                    py27_1    defaults
+jupyter-client            4.1.1                     <pip>
+jupyter-console           4.0.3                     <pip>
+jupyter-core              4.0.6                     <pip>
+jupyter_client            4.1.1                    py27_0    defaults
+jupyter_console           4.0.3                    py27_0    defaults
+jupyter_core              4.0.6                    py27_0    defaults
+libgcc                    5.2.0                         0    defaults
+libgfortran               3.0.0                         1    defaults
+libpng                    1.6.22                        0    defaults
+libsodium                 1.0.3                         0    defaults
+libtiff                   4.0.6                         2    defaults
+libxml2                   2.9.3                         0    bioconda
+markupsafe                0.23                     py27_0    defaults
+matplotlib                1.5.1               np111py27_0    defaults
+mccabe                    0.3.1                     <pip>
+mistune                   0.7.1                    py27_0    defaults
+mkl                       11.3.3                        0    defaults
+nbconvert                 4.0.0                    py27_0    defaults
+nbformat                  4.0.1                    py27_0    defaults
+ncurses                   5.9                           0    defaults
+networkx                  1.10                     py27_0    defaults
+nose                      1.3.7                    py27_0    defaults
+notebook                  4.0.6                    py27_0    defaults
+numpy                     1.11.1                   py27_0    defaults
+openbabel                 2.3.90dev7d621d9          py27_0    bioconda
+openblas                  0.2.14                        3    defaults
+openssl                   1.0.2h                        1    defaults
+pandas                    0.18.1              np111py27_0    defaults
+path.py                   8.1.2                    py27_1    defaults
+pep8                      1.5.7                     <pip>
+pexpect                   3.3                      py27_0    defaults
+pickleshare               0.5                      py27_0    defaults
+pillow                    3.2.0                    py27_1    defaults
+pip                       8.1.2                    py27_0    defaults
+pixman                    0.32.6                        0    defaults
+ptyprocess                0.5                      py27_0    defaults
+py-graphviz               0.4.10                   py27_0    bioconda
+py2cairo                  1.10.0                   py27_2    defaults
+pybedtools                0.7.7                    py27_1    http://conda.anaconda.org/bioconda/linux-64/pybedtools-0.7.7-py27_1.tar.bz2
+pycairo                   1.10.0                   py27_0    defaults
+pydot                     1.0.2                     <pip>
+pyflakes                  1.0.0                     <pip>
+pygments                  2.0.2                    py27_0    defaults
+pygraphviz                1.2                      py27_0    http://conda.anaconda.org/pdrops/linux-64/pygraphviz-1.2-py27_0.tar.bz2
+pymf                      0.1.9                     <pip>
+pyparsing                 2.1.4                    py27_0    defaults
+pyqt                      4.11.4                   py27_3    defaults
+pysam                     0.9.1                    py27_0    bioconda
+python                    2.7.12                        1    defaults
+python-dateutil           2.5.3                    py27_0    defaults
+pytz                      2016.4                   py27_0    defaults
+pyyaml                    3.11                      <pip>
+pyzmq                     14.7.0                   py27_1    defaults
+qt                        4.8.7                         3    defaults
+qtconsole                 4.1.1                    py27_0    defaults
+readline                  6.2                           2    defaults
+regex                     2016.8.27                 <pip>
+reportlab                 3.3.0                    py27_0    defaults
+requests                  2.10.0                   py27_0    defaults
+samtools                  1.3.1                         1    http://conda.anaconda.org/bioconda/linux-64/samtools-1.3.1-1.tar.bz2
+scikit-learn              0.17.1              np111py27_2    defaults
+scikit-neuralnetwork      0.4                       <pip>
+scipy                     0.17.1              np111py27_1    defaults
+scripttest                1.3                       <pip>
+setuptools                23.0.0                   py27_0    defaults
+simplegeneric             0.8.1                    py27_0    defaults
+singledispatch            3.4.0.3                  py27_0    defaults
+sip                       4.16.9                   py27_0    defaults
+six                       1.10.0                   py27_0    defaults
+sqlite                    3.13.0                        0    defaults
+ssl_match_hostname        3.4.0.2                  py27_0    defaults
+terminado                 0.5                      py27_1    defaults
+theano                    0.7.0                     <pip>
+tk                        8.5.18                        0    defaults
+tornado                   4.3                      py27_0    defaults
+traitlets                 4.0.0                    py27_0    defaults
+weblogo                   3.4                       <pip>
+wheel                     0.29.0                   py27_0    defaults
+xz                        5.2.2                         0    defaults
+zeromq                    4.1.3                         0    defaults
+zlib                      1.2.8                         3    defaults
