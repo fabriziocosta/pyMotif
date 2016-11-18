@@ -17,14 +17,12 @@ import random
 
 from eden.util import configure_logging
 import logging
-logger = logging.getLogger()
-configure_logging(logger, verbosity=1)
-
-
-noise_level = sys.argv[1]
 
 
 # In[3]:
+
+noise_level = sys.argv[1]
+SEED = sys.argv[2]
 
 
 def random_string(length, alphabet_list):
@@ -134,12 +132,12 @@ def get_dataset(sequence_length=200,
     block_size = n_sequences / 8
 
     pos_size = len(pos_seqs)
-    train_pos_seqs = pos_seqs[:pos_size / 2]
+    # train_pos_seqs = pos_seqs[:pos_size / 2]
     test_pos_seqs = pos_seqs[pos_size / 2:]
 
-    neg_size = len(neg_seqs)
-    train_neg_seqs = neg_seqs[:neg_size / 2]
-    test_neg_seqs = neg_seqs[neg_size / 2:]
+    # neg_size = len(neg_seqs)
+    # train_neg_seqs = neg_seqs[:neg_size / 2]
+    # test_neg_seqs = neg_seqs[neg_size / 2:]
 
     true_score = [float(int(i)) for i in binary_seq]
     return (block_size, pos_seqs, neg_seqs, test_pos_seqs, n_motives, true_score)
@@ -152,8 +150,7 @@ def test_on_datasets(n_sets=5, param_setting=None, p=0.2, max_roc=0.5, std_roc=0
     dataset_score = []
     for k in range(n_sets):
         # Generate data set
-        data = get_dataset(
-            sequence_length=300, n_sequences=1000, motif_length=10, n_motives=4, p=p)
+        data = get_dataset(sequence_length=300, n_sequences=1000, motif_length=10, n_motives=4, p=p, random_state=SEED)
         block_size = data[0]
         pos_seqs = data[1]
         neg_seqs = data[2]
@@ -197,7 +194,7 @@ def test_on_datasets(n_sets=5, param_setting=None, p=0.2, max_roc=0.5, std_roc=0
         # z-score = (x - mu)/sigma
         # if ((roc_score - max_roc)/std_roc) > 2:
         if roc_score < 0.6:
-            print "discarding parameter setting..."
+            # print "discarding parameter setting..."
             break
 
         dataset_score.append(roc_score)
@@ -268,8 +265,10 @@ def random_setting(parameters=None, best_config=None, noise=None):
 
 # %%time
 
-print datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S'),
-print "Starting experiment...\n"
+logger = logging.getLogger()
+configure_logging(logger, verbosity=1)
+
+filename = "Result_at_" + str(noise_level)
 
 best_config = {'min_score': 6,  # atleast motif_length/2
                'min_freq': 0.1,  # can not be more than (1- noise level)
@@ -280,12 +279,10 @@ best_config = {'min_score': 6,  # atleast motif_length/2
                'freq_th': 0.05,  # 0.05
                'std_th': 0.2}  # 0.2
 
-# Final results
-# param = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-# param = noise_level
+
 results_dic = {}
 
-reps = 1    # different settings to be tried
+REPS = 1    # different settings to be tried
 
 # for i in param:
 parameters = {'min_freq': [],
@@ -299,36 +296,35 @@ parameters = {'min_freq': [],
 max_roc = 0.5
 std_roc = 0.01
 # parameters = generate_dist(parameters, best_config)
-for j in range(reps):
-    # i)    # Randomize Parameter setting
-    param_setting = random_setting(parameters, best_config, noise_level)
-    n_sets = 1    # Different data sets
-    dataset_score = test_on_datasets(n_sets=n_sets,
-                                     param_setting=param_setting,
-                                     p=noise_level,
-                                     max_roc=max_roc,
-                                     std_roc=std_roc)
-    mean_roc = np.mean(dataset_score)
-    std = np.std(dataset_score)
+with open(filename, 'w') as f:
+    f.write(datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S') + " Starting experiment...\n")
 
-    if mean_roc > max_roc:
-        max_roc = mean_roc
-        std_roc = std
-        print datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S'),
-        print "Better Configuration found at perturbation prob = ", noise_level
-        print "ROC: ", mean_roc
-        print "Parameter Configuration: ", param_setting
-        print
-        best_config = param_setting
-        param_setting["ROC"] = mean_roc
-        results_dic[noise_level] = param_setting
+    for j in range(REPS):
+        # i)    # Randomize Parameter setting
+        param_setting = random_setting(parameters, best_config, noise_level)
+        N_SETS = 1    # Different data sets
+        dataset_score = test_on_datasets(n_sets=N_SETS,
+                                         param_setting=param_setting,
+                                         p=noise_level,
+                                         max_roc=max_roc,
+                                         std_roc=std_roc)
+        mean_roc = np.mean(dataset_score)
+        std = np.std(dataset_score)
 
+        if mean_roc > max_roc:
+            max_roc = mean_roc
+            std_roc = std
+            time = datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S')
+            f.write(time + " Better Configuration found at perturbation prob = " + str(noise_level) + '\n')
+            f.write("ROC: " + str(mean_roc) + '\n')
+            f.write("Parameter Configuration: " + str(param_setting) + '\n\n')
 
-# In[ ]:
+            best_config = param_setting
+            param_setting["ROC"] = mean_roc
+            results_dic[noise_level] = param_setting
 
+            if mean_roc > 0.97:
+                break
 
-"""for key in results_dic.keys():
-    print "for ", key, ":",
-    print results_dic[key]
-    print
-"""
+# TODO: final report
+# seeds for randomization
