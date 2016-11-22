@@ -1,7 +1,6 @@
-"""script for finding optimal parameters for a given noise level."""
+"""Script for finding optimal SMoD parameters for a given noise level."""
 import sys
 
-# coding: utf-8
 
 # In[1]:
 
@@ -21,8 +20,8 @@ import logging
 
 # In[3]:
 
-noise_level = sys.argv[1]
-SEED = sys.argv[2]
+noise_level = float(sys.argv[1])
+SEED = int(sys.argv[2])
 
 
 def random_string(length, alphabet_list):
@@ -115,14 +114,16 @@ def get_dataset(sequence_length=200,
                 n_sequences=200,
                 motif_length=10,
                 n_motives=2,
-                p=0.2):
+                p=0.2,
+                random_state=1):
     """Generate, preprocess and return the dataset."""
     motives, pos_seqs, binary_seq = make_artificial_dataset(alphabet='ACGT',
                                                             sequence_length=sequence_length,
                                                             n_sequences=n_sequences,
                                                             motif_length=motif_length,
                                                             n_motives=n_motives,
-                                                            p=p)
+                                                            p=p,
+                                                            random_state=random_state)
 
     from eden.modifier.seq import seq_to_seq, shuffle_modifier
     neg_seqs = seq_to_seq(
@@ -132,15 +133,15 @@ def get_dataset(sequence_length=200,
     block_size = n_sequences / 8
 
     pos_size = len(pos_seqs)
-    # train_pos_seqs = pos_seqs[:pos_size / 2]
+    train_pos_seqs = pos_seqs[:pos_size / 2]
     test_pos_seqs = pos_seqs[pos_size / 2:]
 
-    # neg_size = len(neg_seqs)
-    # train_neg_seqs = neg_seqs[:neg_size / 2]
+    neg_size = len(neg_seqs)
+    train_neg_seqs = neg_seqs[:neg_size / 2]
     # test_neg_seqs = neg_seqs[neg_size / 2:]
 
     true_score = [float(int(i)) for i in binary_seq]
-    return (block_size, pos_seqs, neg_seqs, test_pos_seqs, n_motives, true_score)
+    return (block_size, train_pos_seqs, train_neg_seqs, test_pos_seqs, n_motives, true_score)
 
 
 # In[6]:
@@ -152,8 +153,8 @@ def test_on_datasets(n_sets=5, param_setting=None, p=0.2, max_roc=0.5, std_roc=0
         # Generate data set
         data = get_dataset(sequence_length=300, n_sequences=1000, motif_length=10, n_motives=4, p=p, random_state=SEED)
         block_size = data[0]
-        pos_seqs = data[1]
-        neg_seqs = data[2]
+        train_pos_seqs = data[1]
+        train_neg_seqs = data[2]
         test_pos_seqs = data[3]
         n_motives = data[4]
         true_score = data[5]
@@ -178,7 +179,7 @@ def test_on_datasets(n_sets=5, param_setting=None, p=0.2, max_roc=0.5, std_roc=0
                            freq_th=param_setting['freq_th'],
                            std_th=param_setting['std_th'])
 
-        smod.fit(pos_seqs, neg_seqs)
+        smod.fit(train_pos_seqs, train_neg_seqs)
 
         try:
             scores = score_seqs(seqs=test_pos_seqs,
@@ -190,9 +191,10 @@ def test_on_datasets(n_sets=5, param_setting=None, p=0.2, max_roc=0.5, std_roc=0
         mean_score = np.mean(scores, axis=0)
         roc_score = roc_auc_score(true_score, mean_score)
 
+        """
         # if a parameter setting performs poorly, don't test on other datasets
-        # z-score = (x - mu)/sigma
-        # if ((roc_score - max_roc)/std_roc) > 2:
+        z-score = (x - mu)/sigma
+        if ((roc_score - max_roc)/std_roc) > 2:"""
         if roc_score < 0.6:
             # print "discarding parameter setting..."
             break
@@ -237,7 +239,7 @@ def check_validity(key, value, noise):
 def random_setting(parameters=None, best_config=None, noise=None):
     """Generate a random parameter setting."""
     parameter_setting = {}
-    MAX_ITER = 1000
+    max_iter = 1000
     # use best_configuration of last run as initial setting
     if not parameters['min_score']:
         for key in parameters.keys():
@@ -248,11 +250,16 @@ def random_setting(parameters=None, best_config=None, noise=None):
             success = False
             n_iter = 0
             mu = np.mean(parameters[key])
-            sigma = np.mean(parameters[key])
+            sigma = np.std(parameters[key])
+            if sigma == 0:
+                sigma = 0.01
             while not success:
                 # if max_iterations exceeded, return mean as value
-                if n_iter == MAX_ITER:
+                if n_iter == max_iter:
                     value = mu
+                    if key in ['min_score', 'min_cluster_size']:
+                        value = int(round(value))
+                    # parameter_setting[key] = value
                     break
                 value = np.random.normal(mu, 2 * sigma)
                 n_iter += 1
@@ -268,7 +275,7 @@ def random_setting(parameters=None, best_config=None, noise=None):
 logger = logging.getLogger()
 configure_logging(logger, verbosity=1)
 
-filename = "Result_at_" + str(noise_level)
+filename = "Result_at_" + str(noise_level) + ".txt"
 
 best_config = {'min_score': 6,  # atleast motif_length/2
                'min_freq': 0.1,  # can not be more than (1- noise level)
@@ -282,7 +289,7 @@ best_config = {'min_score': 6,  # atleast motif_length/2
 
 results_dic = {}
 
-REPS = 1    # different settings to be tried
+REPS = 40    # different settings to be tried
 
 # for i in param:
 parameters = {'min_freq': [],
@@ -296,26 +303,29 @@ parameters = {'min_freq': [],
 max_roc = 0.5
 std_roc = 0.01
 # parameters = generate_dist(parameters, best_config)
-with open(filename, 'w') as f:
+
+with open(filename, "w") as f:
     f.write(datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S') + " Starting experiment...\n")
 
     for j in range(REPS):
         # i)    # Randomize Parameter setting
         param_setting = random_setting(parameters, best_config, noise_level)
-        N_SETS = 1    # Different data sets
+        N_SETS = 5    # Different data sets
         dataset_score = test_on_datasets(n_sets=N_SETS,
                                          param_setting=param_setting,
                                          p=noise_level,
                                          max_roc=max_roc,
                                          std_roc=std_roc)
+        if not dataset_score:
+            continue
         mean_roc = np.mean(dataset_score)
         std = np.std(dataset_score)
 
         if mean_roc > max_roc:
             max_roc = mean_roc
             std_roc = std
-            time = datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S')
-            f.write(time + " Better Configuration found at perturbation prob = " + str(noise_level) + '\n')
+            exact_time = datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S')
+            f.write(exact_time + " Better Configuration found at perturbation prob = " + str(noise_level) + '\n')
             f.write("ROC: " + str(mean_roc) + '\n')
             f.write("Parameter Configuration: " + str(param_setting) + '\n\n')
 
@@ -325,6 +335,5 @@ with open(filename, 'w') as f:
 
             if mean_roc > 0.97:
                 break
-
-# TODO: final report
-# seeds for randomization
+    exact_time = datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S')
+    f.write(exact_time + " Experiment finished.\n")
