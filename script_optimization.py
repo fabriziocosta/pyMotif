@@ -3,7 +3,6 @@ import sys
 
 
 # In[1]:
-
 from smod_wrapper import SMoDWrapper
 from sklearn.cluster import KMeans
 import numpy as np
@@ -21,7 +20,7 @@ import logging
 # In[3]:
 
 noise_level = float(sys.argv[1])
-SEED = int(sys.argv[2])
+# SEED = int(sys.argv[2])
 
 
 def random_string(length, alphabet_list):
@@ -145,13 +144,15 @@ def get_dataset(sequence_length=200,
 
 
 # In[6]:
-
 def test_on_datasets(n_sets=5, param_setting=None, p=0.2, max_roc=0.5, std_roc=0.01):
     """Test the parameter setting on a given number of datasets."""
     dataset_score = []
+    seeds = [i * 2000 for i in range(1, n_sets + 1)]
     for k in range(n_sets):
+        print "n_sets: %d" % (k + 1)
         # Generate data set
-        data = get_dataset(sequence_length=300, n_sequences=1000, motif_length=10, n_motives=4, p=p, random_state=SEED)
+        seed = seeds[k]
+        data = get_dataset(sequence_length=300, n_sequences=1000, motif_length=10, n_motives=4, p=p, random_state=seed)
         block_size = data[0]
         train_pos_seqs = data[1]
         train_neg_seqs = data[2]
@@ -289,7 +290,7 @@ best_config = {'min_score': 6,  # atleast motif_length/2
 
 results_dic = {}
 
-REPS = 40    # different settings to be tried
+REPS = 120    # different settings to be tried
 
 # for i in param:
 parameters = {'min_freq': [],
@@ -308,6 +309,8 @@ with open(filename, "w") as f:
     f.write(datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S') + " Starting experiment...\n")
 
     for j in range(REPS):
+        print
+        print "REPS: %d" % (j + 1)
         # i)    # Randomize Parameter setting
         param_setting = random_setting(parameters, best_config, noise_level)
         N_SETS = 5    # Different data sets
@@ -324,8 +327,8 @@ with open(filename, "w") as f:
         if mean_roc > max_roc:
             max_roc = mean_roc
             std_roc = std
-            exact_time = datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S')
-            f.write(exact_time + " Better Configuration found at perturbation prob = " + str(noise_level) + '\n')
+            current_time = datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S')
+            f.write(current_time + " Better Configuration found at perturbation prob = " + str(noise_level) + '\n')
             f.write("ROC: " + str(mean_roc) + '\n')
             f.write("Parameter Configuration: " + str(param_setting) + '\n\n')
 
@@ -335,5 +338,5 @@ with open(filename, "w") as f:
 
             if mean_roc > 0.97:
                 break
-    exact_time = datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S')
-    f.write(exact_time + " Experiment finished.\n")
+    current_time = datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S')
+    f.write(current_time + " Experiment finished.\n")
