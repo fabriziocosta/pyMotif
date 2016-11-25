@@ -1,6 +1,8 @@
 """Wrapper for motif discovery tool DREME."""
 import os
 
+from time import time
+
 from subprocess import PIPE, Popen
 
 from utilities import MotifWrapper
@@ -10,7 +12,6 @@ from Bio import SeqIO
 
 import logging
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 class Dreme(MotifWrapper):
@@ -22,6 +23,7 @@ class Dreme(MotifWrapper):
 
     def __init__(self,
                  output_dir='dreme_out',
+                 e_threshold=None,    # motifs with E-value less than this threshold will be recorded
 
                  # alphabet
                  alphabet='dna',    # ['dna','rna','protein']
@@ -54,6 +56,7 @@ class Dreme(MotifWrapper):
                  ):
         """Initialize a Dreme Object."""
         self.output_dir = output_dir
+        self.e_threshold = e_threshold
         self.alphabet = alphabet
         self.gap_in_alphabet = gap_in_alphabet
         self.scoring_criteria = scoring_criteria
@@ -157,21 +160,20 @@ class Dreme(MotifWrapper):
         io = Popen(cmd.split(" "), stdout=PIPE, stderr=PIPE)
         (stderr, stdout) = io.communicate()
 
-        # logger.info(stdout)
-
     def fit(self, fasta_file='', control_file=None):
         """Save the output of DREME and parse it."""
+        start = time()
         if not fasta_file:
             return NameError('Input fasta file not specified')
-
         cmd_params = self._make_param_string()
-
         self._command_exec(fasta_file, control_file, cmd_params)
+        end = time()
+        logger.debug('DREME finished in %d s' % (end - start))
 
+        start = time()
         filename = os.path.join(self.output_dir, 'dreme.txt')
-
         # record is useful information retrieved from parsing output
-        record = Record()
+        record = Record(threshold=self.e_threshold)
         with open(filename) as handle:
             record._get_data(handle)
 
@@ -184,6 +186,8 @@ class Dreme(MotifWrapper):
         self.seq_names = headers[:]
         self.motives_list = self._get_motives_list(self.nmotifs, headers, seqs)
         super(Dreme, self).fit(motives=self.motives_list)
+        end = time()
+        logger.debug('Processing DREME output finished in %d s' % (end - start))
 
     def _parse_fasta(self, filename):
         headers = []
@@ -262,11 +266,12 @@ class Dreme(MotifWrapper):
 class Record(list):
     """A class for holding the results of a DREME run."""
 
-    def __init__(self):
+    def __init__(self, threshold=None):
         """init."""
+        self.threshold = threshold
+
         self.version = ""
         self.alphabet = None
-        # self.instances = []
         self.consensus_seqs = list()
         self.widths = list()
         self.nsites = list()
@@ -332,6 +337,16 @@ class Record(list):
                     pwm.append(data)
 
                 matrices.append(pwm)
+
+        # select motives below E-value threshold
+        if self.threshold:
+            indexes = [i for i, x in enumerate(evalues) if x <= self.threshold]
+            consensus = [consensus[ind] for ind in indexes]
+            lengths = [lengths[ind] for ind in indexes]
+            num_sites = [num_sites[ind] for ind in indexes]
+            evalues = [evalues[ind] for ind in indexes]
+            matrices = [matrices[ind] for ind in indexes]
+
         self.consensus_seqs = consensus[:]
         self.widths = lengths[:]
         self.nsites = num_sites[:]
