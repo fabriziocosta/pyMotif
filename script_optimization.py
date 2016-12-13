@@ -20,7 +20,8 @@ import logging
 from dataset_generator import make_artificial_dataset
 
 noise_level = float(sys.argv[1])
-
+REPS = 120    # Different parameter settings to be tried
+N_SETS = 5    # each parameter setting to be tested on N_SETS data sets
 # In[4]:
 
 
@@ -234,8 +235,6 @@ best_config = {'min_score': 6,  # atleast motif_length/2
 
 results_dic = {}
 
-REPS = 120    # different settings to be tried
-
 # for i in param:
 parameters = {'min_freq': [],
               'min_cluster_size': [],
@@ -257,7 +256,6 @@ with open(filename, "w") as f:
         print "REPS: %d" % (j + 1)
         # i)    # Randomize Parameter setting
         param_setting = random_setting(parameters, best_config, noise_level)
-        N_SETS = 5    # Different data sets
         dataset_score = test_on_datasets(n_sets=N_SETS,
                                          param_setting=param_setting,
                                          p=noise_level,

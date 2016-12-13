@@ -351,9 +351,10 @@ class MotifWrapper(object):
         for i, s in enumerate(sequences):
             for j in range(len(self.pwms_list)):
                 score = self._eval_pwm(motif_num=j + 1, seq=s)
+                score_max = max(score)
                 for scr in score:
                     if scr > self.threshold:
-                        if max(score) > self.threshold:
+                        if score_max > self.threshold:
                             seq_lists[i].append(j)
         return seq_lists
 

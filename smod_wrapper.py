@@ -120,7 +120,7 @@ class SMoDWrapper(MotifWrapper):
                                               freq_th=self.freq_th,
                                               std_th=self.std_th)
         except AttributeError:
-            raise Exception('No motives found.')
+            raise AttributeError('No motives found.')
 
         self.nmotifs = len(motives.keys())
         self.original_motives_list = self._get_motives_list(motives)[:]
