@@ -643,9 +643,12 @@ class MotifWrapper(object):
 
         instances = random.sample(instances, samples)
 
-        mm = MarkovModel.train_bw(states=states,
-                                  alphabet=alphabet,
-                                  training_data=instances)
+        try:
+            mm = MarkovModel.train_bw(states=states,
+                                      alphabet=alphabet,
+                                      training_data=instances)
+        except RuntimeError, msg:
+            raise RuntimeError("Motif data is too large. " + str(msg))
         return mm
 
     def _score_mm(self, motif_num=1, seq=''):

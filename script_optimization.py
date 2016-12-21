@@ -9,7 +9,6 @@ import numpy as np
 from sklearn.metrics import roc_auc_score
 import datetime
 import time
-import random
 
 # In[2]:
 
@@ -18,67 +17,13 @@ import logging
 
 
 # In[3]:
+from dataset_generator import make_artificial_dataset
 
 noise_level = float(sys.argv[1])
-# SEED = int(sys.argv[2])
-
-
-def random_string(length, alphabet_list):
-    """Generate a random string of given length."""
-    rand_str = ''.join(random.choice(alphabet_list) for i in range(length))
-    return rand_str
-
-
-def perturb(seed, alphabet_list, p=0.5):
-    """Generate a noisy sequence."""
-    seq = ''
-    for c in seed:
-        if random.random() < p:
-            c = random.choice(alphabet_list)
-        seq += c
-    return seq
-
-
-def make_artificial_dataset(alphabet='ACGT', motives=None, motif_length=6,
-                            sequence_length=100, n_sequences=1000, n_motives=2, p=0.2,
-                            random_state=1):
-    """"Generate the dataset."""
-    random.seed(random_state)
-
-    alphabet_list = [c for c in alphabet]
-
-    if motives is None:
-        motives = []
-        for i in range(n_motives):
-            motives.append(random_string(motif_length, alphabet_list))
-    else:
-        motif_length = len(motives[0])
-        n_motives = len(motives)
-
-    sequence_length = sequence_length / len(motives)
-    flanking_length = (sequence_length - motif_length) / 2
-    n_seq_per_motif = n_sequences
-
-    counter = 0
-    seqs = []
-    for i in range(n_seq_per_motif):
-        total_seq = ''
-        # total_binary_seq = ''
-        for j in range(n_motives):
-            left_flanking = random_string(flanking_length, alphabet_list)
-            right_flanking = random_string(flanking_length, alphabet_list)
-            noisy_motif = perturb(motives[j], alphabet_list, p)
-            seq = left_flanking + noisy_motif + right_flanking
-            total_seq += seq
-        seqs.append(('ID%d' % counter, total_seq))
-        counter += 1
-    binary_skeleton = '0' * flanking_length + \
-        '1' * motif_length + '0' * flanking_length
-    binary_seq = binary_skeleton * n_motives
-    return motives, seqs, binary_seq
-
-
+REPS = 120    # Different parameter settings to be tried
+N_SETS = 5    # each parameter setting to be tested on N_SETS data sets
 # In[4]:
+
 
 def score_seqs(seqs, n_motives, tool):
     """Score every sequences in the given test data set."""
@@ -290,8 +235,6 @@ best_config = {'min_score': 6,  # atleast motif_length/2
 
 results_dic = {}
 
-REPS = 120    # different settings to be tried
-
 # for i in param:
 parameters = {'min_freq': [],
               'min_cluster_size': [],
@@ -313,7 +256,6 @@ with open(filename, "w") as f:
         print "REPS: %d" % (j + 1)
         # i)    # Randomize Parameter setting
         param_setting = random_setting(parameters, best_config, noise_level)
-        N_SETS = 5    # Different data sets
         dataset_score = test_on_datasets(n_sets=N_SETS,
                                          param_setting=param_setting,
                                          p=noise_level,
